@@ -12,12 +12,14 @@ API 依赖注入模块
 
 from typing import Generator
 
-from fastapi import Request
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from src.storage import DatabaseManager
 from src.config import get_config, Config
 from src.services.system_config_service import SystemConfigService
+from src.user_context import CurrentUser
+from src.permissions import SUPER_ADMIN_ROLE_KEY
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -69,3 +71,82 @@ def get_system_config_service(request: Request) -> SystemConfigService:
         service = SystemConfigService()
         request.app.state.system_config_service = service
     return service
+
+
+def get_credit_service():
+    """Get CreditService singleton."""
+    from src.services.credit_service import CreditService
+    return CreditService.get_instance()
+
+
+def require_min_balance():
+    """Dependency: block request if user has no credits."""
+    def dependency(
+        current_user: CurrentUser = Depends(get_current_user),
+        cs=Depends(get_credit_service),
+    ):
+        if not cs.check_balance(current_user.id):
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "insufficient_credits",
+                    "message": "积分不足，请充值",
+                },
+            )
+    return dependency
+
+
+def require_admin():
+    """Dependency: block request if user is not an admin."""
+    def dependency(current_user: CurrentUser = Depends(get_current_user)):
+        if not current_user.is_admin and current_user.role_key != SUPER_ADMIN_ROLE_KEY:
+            raise HTTPException(
+                status_code=403,
+                detail={"error": "admin_required", "message": "仅管理员可执行此操作"},
+            )
+    return dependency
+
+
+def require_permission(menu_key: str):
+    """Dependency: block request if user lacks a menu permission."""
+    def dependency(current_user: CurrentUser = Depends(get_current_user)):
+        if current_user.is_admin or current_user.role_key == SUPER_ADMIN_ROLE_KEY:
+            return
+        if menu_key not in set(current_user.menu_permissions or ()):
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "permission_denied",
+                    "message": "当前角色无权访问该功能",
+                    "menuKey": menu_key,
+                },
+            )
+    return dependency
+
+
+def require_any_permission(menu_keys: list[str]):
+    """Dependency: allow users with any permission from a set."""
+    def dependency(current_user: CurrentUser = Depends(get_current_user)):
+        if current_user.is_admin or current_user.role_key == SUPER_ADMIN_ROLE_KEY:
+            return
+        permissions = set(current_user.menu_permissions or ())
+        if not any(menu_key in permissions for menu_key in menu_keys):
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "permission_denied",
+                    "message": "当前角色无权访问该功能",
+                    "menuKeys": menu_keys,
+                },
+            )
+    return dependency
+
+
+def get_current_user(request: Request) -> CurrentUser:
+    user = getattr(request.state, "current_user", None)
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "unauthorized", "message": "Login required"},
+        )
+    return user

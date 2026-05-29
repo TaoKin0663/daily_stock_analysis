@@ -6,6 +6,7 @@
 python-dotenv>=1.0.0        # 环境变量配置管理
 tenacity>=8.2.0             # 重试机制（指数退避）
 sqlalchemy>=2.0.0           # ORM数据库操作
+psycopg[binary]>=3.1.0      # PostgreSQL driver for SQLAlchemy DATABASE_URL
 schedule>=1.2.0             # 定时任务调度
 exchange-calendars>=4.5.0   # 交易日历（A股/港股/美股，Issue #373）
 
@@ -40,6 +41,7 @@ PyYAML>=6.0                 # YAML parser for LITELLM_CONFIG support
 # 搜索引擎（用于获取股票新闻）
 tavily-python>=0.3.0        # Tavily 搜索 API（每月 1000 次免费）
 google-search-results>=2.4.0  # SerpAPI（每月 100 次免费）
+
 
 # 网络请求
 requests>=2.31.0            # HTTP 请求

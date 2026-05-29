@@ -138,9 +138,10 @@ class LLMToolAdapter:
     load balancing.
     """
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, *, model_override: Optional[str] = None):
         config = config or get_config()
         self._config = config
+        self._model_override = model_override  # Per-agent model override from agent_model_map
         self._router = None          # litellm Router (multi-key primary model)
         self._litellm_available = False
         self._register_custom_model_pricing()
@@ -243,6 +244,17 @@ class LLMToolAdapter:
             return model.split("/")[0]
         return model or "none"
 
+    @property
+    def has_model_override(self) -> bool:
+        """Whether this adapter is pinned to a per-agent model override."""
+        return bool(self._model_override)
+
+    def get_models_to_try(self) -> List[str]:
+        """Return the exact model try-order used by completion calls."""
+        if self._model_override:
+            return [self._model_override]
+        return list(get_effective_agent_models_to_try(self._config))
+
     # ============================================================
     # Unified call
     # ============================================================
@@ -297,8 +309,7 @@ class LLMToolAdapter:
         timeout: Optional[float] = None,
     ) -> LLMResponse:
         """Shared completion path for both tool and text-only calls."""
-        config = self._config
-        models_to_try = get_effective_agent_models_to_try(config)
+        models_to_try = self.get_models_to_try()
         started_at = time.time()
         providers = [self._get_model_provider(model) for model in models_to_try]
 

@@ -15,6 +15,7 @@ from src.core.backtest_engine import OVERALL_SENTINEL_CODE, BacktestEngine, Eval
 from src.repositories.backtest_repo import BacktestRepository
 from src.repositories.stock_repo import StockRepository
 from src.storage import BacktestResult, BacktestSummary, DatabaseManager
+from src.user_context import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,10 @@ class BacktestService:
         eval_window_days: Optional[int] = None,
         min_age_days: Optional[int] = None,
         limit: int = 200,
+        owner_user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         config = get_config()
+        owner_user_id = self._resolve_owner_user_id(owner_user_id)
 
         if eval_window_days is None:
             eval_window_days = getattr(config, "backtest_eval_window_days", 10)
@@ -61,6 +64,7 @@ class BacktestService:
             eval_window_days=int(eval_window_days),
             engine_version=str(engine_version),
             force=force,
+            owner_user_id=owner_user_id,
         )
 
         processed = 0
@@ -82,6 +86,7 @@ class BacktestService:
                     results_to_save.append(
                         BacktestResult(
                             analysis_history_id=analysis.id,
+                            owner_user_id=owner_user_id,
                             code=analysis.code,
                             eval_window_days=int(eval_window_days),
                             engine_version=str(engine_version),
@@ -102,6 +107,7 @@ class BacktestService:
                     results_to_save.append(
                         BacktestResult(
                             analysis_history_id=analysis.id,
+                            owner_user_id=owner_user_id,
                             code=analysis.code,
                             analysis_date=analysis_date,
                             eval_window_days=int(eval_window_days),
@@ -148,6 +154,7 @@ class BacktestService:
                 results_to_save.append(
                     BacktestResult(
                         analysis_history_id=analysis.id,
+                        owner_user_id=owner_user_id,
                         code=analysis.code,
                         analysis_date=evaluation.get("analysis_date"),
                         eval_window_days=int(evaluation.get("eval_window_days") or eval_window_days),
@@ -184,6 +191,7 @@ class BacktestService:
                 results_to_save.append(
                     BacktestResult(
                         analysis_history_id=analysis.id,
+                        owner_user_id=owner_user_id,
                         code=analysis.code,
                         analysis_date=self._resolve_analysis_date(analysis),
                         eval_window_days=int(eval_window_days),
@@ -203,6 +211,7 @@ class BacktestService:
                 touched_codes=sorted(touched_codes),
                 eval_window_days=int(eval_window_days),
                 engine_version=str(engine_version),
+                owner_user_id=owner_user_id,
             )
 
         return {
@@ -222,7 +231,9 @@ class BacktestService:
         page: int = 1,
         analysis_date_from: Optional[date] = None,
         analysis_date_to: Optional[date] = None,
+        owner_user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
+        owner_user_id = self._resolve_owner_user_id(owner_user_id)
         config = get_config()
         engine_version = str(getattr(config, "backtest_engine_version", "v1"))
 
@@ -234,6 +245,7 @@ class BacktestService:
                 engine_version=engine_version,
                 analysis_date_from=analysis_date_from,
                 analysis_date_to=analysis_date_to,
+                owner_user_id=owner_user_id,
             )
             if windows:
                 eval_window_days = windows[0]
@@ -248,6 +260,7 @@ class BacktestService:
             days=None,
             offset=offset,
             limit=limit,
+            owner_user_id=owner_user_id,
         )
         items = [self._result_to_dict(result, stock_name, trend_prediction) for result, stock_name, trend_prediction, _ in rows]
         return {"total": total, "page": page, "limit": limit, "items": items}
@@ -260,7 +273,9 @@ class BacktestService:
         eval_window_days: Optional[int] = None,
         analysis_date_from: Optional[date] = None,
         analysis_date_to: Optional[date] = None,
+        owner_user_id: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
+        owner_user_id = self._resolve_owner_user_id(owner_user_id)
         config = get_config()
         engine_version = str(getattr(config, "backtest_engine_version", "v1"))
         lookup_code = OVERALL_SENTINEL_CODE if scope == "overall" else code
@@ -273,6 +288,7 @@ class BacktestService:
                 engine_version=engine_version,
                 analysis_date_from=analysis_date_from,
                 analysis_date_to=analysis_date_to,
+                owner_user_id=owner_user_id,
             )
             if count > self.MAX_DYNAMIC_SUMMARY_ROWS:
                 raise ValueError(
@@ -284,6 +300,7 @@ class BacktestService:
                 engine_version=engine_version,
                 analysis_date_from=analysis_date_from,
                 analysis_date_to=analysis_date_to,
+                owner_user_id=owner_user_id,
             )
             return self._build_dynamic_summary(
                 rows=rows,
@@ -299,6 +316,7 @@ class BacktestService:
             code=lookup_code,
             eval_window_days=eval_window_days,
             engine_version=engine_version,
+            owner_user_id=owner_user_id,
         )
         if summary is None:
             return None
@@ -363,7 +381,16 @@ class BacktestService:
         except Exception as exc:
             logger.warning(f"补全日线数据失败({code}): {exc}")
 
-    def _recompute_summaries(self, *, touched_codes: List[str], eval_window_days: int, engine_version: str) -> None:
+    def _resolve_owner_user_id(self, owner_user_id: Optional[int]) -> int:
+        if owner_user_id is not None:
+            return owner_user_id
+        current_user_id = get_current_user_id()
+        if current_user_id is not None:
+            return current_user_id
+        return self.db._resolve_owner_id()
+
+    def _recompute_summaries(self, *, touched_codes: List[str], eval_window_days: int, engine_version: str, owner_user_id: Optional[int] = None) -> None:
+        owner_user_id = self._resolve_owner_user_id(owner_user_id)
         with self.db.get_session() as session:
             # overall
             overall_rows = session.execute(
@@ -371,6 +398,7 @@ class BacktestService:
                     and_(
                         BacktestResult.eval_window_days == eval_window_days,
                         BacktestResult.engine_version == engine_version,
+                        BacktestResult.owner_user_id == owner_user_id,
                     )
                 )
             ).scalars().all()
@@ -381,7 +409,7 @@ class BacktestService:
                 eval_window_days=eval_window_days,
                 engine_version=engine_version,
             )
-            overall_summary = self._build_summary_model(overall_data)
+            overall_summary = self._build_summary_model(overall_data, owner_user_id)
             self.repo.upsert_summary(overall_summary)
 
             for code in touched_codes:
@@ -391,6 +419,7 @@ class BacktestService:
                             BacktestResult.code == code,
                             BacktestResult.eval_window_days == eval_window_days,
                             BacktestResult.engine_version == engine_version,
+                            BacktestResult.owner_user_id == owner_user_id,
                         )
                     )
                 ).scalars().all()
@@ -401,14 +430,15 @@ class BacktestService:
                     eval_window_days=eval_window_days,
                     engine_version=engine_version,
                 )
-                summary = self._build_summary_model(data)
+                summary = self._build_summary_model(data, owner_user_id)
                 self.repo.upsert_summary(summary)
 
     @staticmethod
-    def _build_summary_model(summary_data: Dict[str, Any]) -> BacktestSummary:
+    def _build_summary_model(summary_data: Dict[str, Any], owner_user_id: Optional[int] = None) -> BacktestSummary:
         return BacktestSummary(
             scope=summary_data.get("scope"),
             code=summary_data.get("code"),
+            owner_user_id=owner_user_id,
             eval_window_days=summary_data.get("eval_window_days"),
             engine_version=summary_data.get("engine_version"),
             computed_at=datetime.now(),

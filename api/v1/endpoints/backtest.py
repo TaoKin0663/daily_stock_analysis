@@ -9,7 +9,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.deps import get_database_manager
+from api.deps import get_current_user, get_database_manager, require_min_balance
+from src.user_context import CurrentUser
 from api.v1.schemas.backtest import (
     BacktestRunRequest,
     BacktestRunResponse,
@@ -53,6 +54,8 @@ def _validate_analysis_date_range(
 def run_backtest(
     request: BacktestRunRequest,
     db_manager: DatabaseManager = Depends(get_database_manager),
+    current_user: CurrentUser = Depends(get_current_user),
+    _credits: None = Depends(require_min_balance),
 ) -> BacktestRunResponse:
     try:
         service = BacktestService(db_manager)
@@ -62,6 +65,7 @@ def run_backtest(
             eval_window_days=request.eval_window_days,
             min_age_days=request.min_age_days,
             limit=request.limit,
+            owner_user_id=current_user.id,
         )
         return BacktestRunResponse(**stats)
     except Exception as exc:
@@ -90,6 +94,7 @@ def get_backtest_results(
     page: int = Query(1, ge=1, description="页码"),
     limit: int = Query(20, ge=1, le=200, description="每页数量"),
     db_manager: DatabaseManager = Depends(get_database_manager),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> BacktestResultsResponse:
     try:
         _validate_analysis_date_range(analysis_date_from, analysis_date_to)
@@ -101,6 +106,7 @@ def get_backtest_results(
             page=page,
             analysis_date_from=analysis_date_from,
             analysis_date_to=analysis_date_to,
+            owner_user_id=current_user.id,
         )
         items = [BacktestResultItem(**item) for item in data.get("items", [])]
         return BacktestResultsResponse(
@@ -134,6 +140,7 @@ def get_overall_performance(
     analysis_date_from: Optional[date] = Query(None, description="分析日期起始（含）"),
     analysis_date_to: Optional[date] = Query(None, description="分析日期结束（含）"),
     db_manager: DatabaseManager = Depends(get_database_manager),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> PerformanceMetrics:
     try:
         _validate_analysis_date_range(analysis_date_from, analysis_date_to)
@@ -144,6 +151,7 @@ def get_overall_performance(
             eval_window_days=eval_window_days,
             analysis_date_from=analysis_date_from,
             analysis_date_to=analysis_date_to,
+            owner_user_id=current_user.id,
         )
         if summary is None:
             raise HTTPException(
@@ -182,6 +190,7 @@ def get_stock_performance(
     analysis_date_from: Optional[date] = Query(None, description="分析日期起始（含）"),
     analysis_date_to: Optional[date] = Query(None, description="分析日期结束（含）"),
     db_manager: DatabaseManager = Depends(get_database_manager),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> PerformanceMetrics:
     try:
         _validate_analysis_date_range(analysis_date_from, analysis_date_to)
@@ -192,6 +201,7 @@ def get_stock_performance(
             eval_window_days=eval_window_days,
             analysis_date_from=analysis_date_from,
             analysis_date_to=analysis_date_to,
+            owner_user_id=current_user.id,
         )
         if summary is None:
             raise HTTPException(

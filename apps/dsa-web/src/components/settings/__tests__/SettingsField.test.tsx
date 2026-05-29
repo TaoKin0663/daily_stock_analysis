@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { SettingsField } from '../SettingsField';
 
 describe('SettingsField', () => {
-  it('renders sensitive field metadata and validation errors', () => {
+  it('renders sensitive field metadata, validation errors, and visibility toggle', () => {
     const onChange = vi.fn();
 
-    render(
+    const { container } = render(
       <SettingsField
         item={{
           key: 'OPENAI_API_KEY',
@@ -32,17 +32,27 @@ describe('SettingsField', () => {
           {
             key: 'OPENAI_API_KEY',
             code: 'required',
-            message: 'API Key 必填',
+            message: 'API Key is required',
             severity: 'error',
           },
         ]}
       />
     );
 
-    expect(screen.getByText('敏感')).toBeInTheDocument();
-    expect(screen.getByText('API Key 必填')).toBeInTheDocument();
+    expect(screen.getByText('API Key is required')).toBeInTheDocument();
 
     const input = screen.getByLabelText('OpenAI API Key');
+    expect(input).toHaveAttribute('type', 'password');
+
+    const toggleButton = container.querySelector('button');
+    expect(toggleButton).not.toBeNull();
+
+    fireEvent.click(toggleButton as HTMLButtonElement);
+    expect(input).toHaveAttribute('type', 'text');
+
+    fireEvent.click(toggleButton as HTMLButtonElement);
+    expect(input).toHaveAttribute('type', 'password');
+
     fireEvent.focus(input);
     fireEvent.change(input, {
       target: { value: 'updated-secret' },
@@ -51,10 +61,10 @@ describe('SettingsField', () => {
     expect(onChange).toHaveBeenCalledWith('OPENAI_API_KEY', 'updated-secret');
   });
 
-  it('renders multi-value sensitive fields with external delete actions', () => {
+  it('renders multi-value sensitive fields with independent toggles and external delete actions', () => {
     const onChange = vi.fn();
 
-    render(
+    const { container } = render(
       <SettingsField
         item={{
           key: 'OPENAI_API_KEYS',
@@ -79,7 +89,14 @@ describe('SettingsField', () => {
       />
     );
 
-    expect(screen.getAllByRole('button', { name: '显示内容' })).toHaveLength(2);
-    expect(screen.getAllByRole('button', { name: '删除' })).toHaveLength(2);
+    const buttons = Array.from(container.querySelectorAll('button'));
+    const visibilityButtons = buttons.filter((button) => button.hasAttribute('aria-label'));
+    expect(visibilityButtons).toHaveLength(2);
+
+    const inputs = screen.getAllByDisplayValue(/secret-/);
+    fireEvent.click(visibilityButtons[1]);
+
+    expect(inputs[0]).toHaveAttribute('type', 'password');
+    expect(inputs[1]).toHaveAttribute('type', 'text');
   });
 });

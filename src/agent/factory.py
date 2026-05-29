@@ -350,6 +350,7 @@ def _build_orchestrator(config, registry, llm_adapter, skill_manager, *, technic
         mode=mode,
         skill_manager=skill_manager,
         config=config,
+        agent_model_map=getattr(config, "agent_model_map", None) or {},
     )
 
 

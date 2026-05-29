@@ -9,12 +9,14 @@ import logging
 import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+from api.deps import get_current_user, require_min_balance
 from src.config import get_config
 from src.services.agent_model_service import list_agent_model_deployments
+from src.user_context import CurrentUser, use_current_user
 
 # Tool name -> Chinese display name mapping
 TOOL_DISPLAY_NAMES: Dict[str, str] = {
@@ -145,8 +147,18 @@ async def get_strategies():
         default_strategy_id=payload.default_skill_id,
     )
 
+def _exec_chat_with_user(current_user, executor, message, session_id, context):
+    """Run executor.chat() in a thread with explicit user context."""
+    with use_current_user(current_user):
+        return executor.chat(message=message, session_id=session_id, context=context)
+
+
 @router.post("/chat", response_model=ChatResponse)
-async def agent_chat(request: ChatRequest):
+async def agent_chat(
+    request: ChatRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    _credits: None = Depends(require_min_balance),
+):
     """
     Chat with the AI Agent.
     """
@@ -172,8 +184,8 @@ async def agent_chat(request: ChatRequest):
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
-            lambda: executor.chat(message=request.message, session_id=session_id,
-                                  context=ctx),
+            _exec_chat_with_user,
+            current_user, executor, request.message, session_id, ctx,
         )
 
         return ChatResponse(
@@ -205,7 +217,11 @@ class SessionMessagesResponse(BaseModel):
 
 
 @router.get("/chat/sessions", response_model=SessionsResponse)
-async def list_chat_sessions(limit: int = 50, user_id: Optional[str] = None):
+async def list_chat_sessions(
+    limit: int = 50,
+    user_id: Optional[str] = None,
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """获取聊天会话列表
 
     Args:
@@ -221,23 +237,35 @@ async def list_chat_sessions(limit: int = 50, user_id: Optional[str] = None):
         limit=limit,
         session_prefix=user_id,
         extra_session_ids=[user_id] if user_id else None,
+        owner_user_id=current_user.id,
     )
     return SessionsResponse(sessions=sessions)
 
 
 @router.get("/chat/sessions/{session_id}", response_model=SessionMessagesResponse)
-async def get_chat_session_messages(session_id: str, limit: int = 100):
+async def get_chat_session_messages(
+    session_id: str,
+    limit: int = 100,
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """获取单个会话的完整消息"""
     from src.storage import get_db
-    messages = get_db().get_conversation_messages(session_id, limit=limit)
+    messages = get_db().get_conversation_messages(
+        session_id,
+        limit=limit,
+        owner_user_id=current_user.id,
+    )
     return SessionMessagesResponse(session_id=session_id, messages=messages)
 
 
 @router.delete("/chat/sessions/{session_id}")
-async def delete_chat_session(session_id: str):
+async def delete_chat_session(
+    session_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """删除指定会话"""
     from src.storage import get_db
-    count = get_db().delete_conversation_session(session_id)
+    count = get_db().delete_conversation_session(session_id, owner_user_id=current_user.id)
     return {"deleted": count}
 
 
@@ -371,7 +399,11 @@ async def agent_research(request: ResearchRequest):
 
 
 @router.post("/chat/stream")
-async def agent_chat_stream(request: ChatRequest):
+async def agent_chat_stream(
+    request: ChatRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    _credits: None = Depends(require_min_balance),
+):
     """
     Chat with the AI Agent, streaming progress via SSE.
     Each SSE event is a JSON object with a 'type' field:
@@ -405,31 +437,32 @@ async def agent_chat_stream(request: ChatRequest):
         asyncio.run_coroutine_threadsafe(queue.put(event), loop)
 
     def run_sync():
-        try:
-            executor = _build_executor(config, skills or None)
-            result = executor.chat(
-                message=request.message,
-                session_id=session_id,
-                progress_callback=progress_callback,
-                context=stream_ctx,
-            )
-            asyncio.run_coroutine_threadsafe(
-                queue.put({
-                    "type": "done",
-                    "success": result.success,
-                    "content": result.content,
-                    "error": result.error,
-                    "total_steps": result.total_steps,
-                    "session_id": session_id,
-                }),
-                loop,
-            )
-        except Exception as exc:
-            logger.error(f"Agent stream error: {exc}")
-            asyncio.run_coroutine_threadsafe(
-                queue.put({"type": "error", "message": str(exc)}),
-                loop,
-            )
+        with use_current_user(current_user):
+            try:
+                executor = _build_executor(config, skills or None)
+                result = executor.chat(
+                    message=request.message,
+                    session_id=session_id,
+                    progress_callback=progress_callback,
+                    context=stream_ctx,
+                )
+                asyncio.run_coroutine_threadsafe(
+                    queue.put({
+                        "type": "done",
+                        "success": result.success,
+                        "content": result.content,
+                        "error": result.error,
+                        "total_steps": result.total_steps,
+                        "session_id": session_id,
+                    }),
+                    loop,
+                )
+            except Exception as exc:
+                logger.error(f"Agent stream error: {exc}")
+                asyncio.run_coroutine_threadsafe(
+                    queue.put({"type": "error", "message": str(exc)}),
+                    loop,
+                )
 
     async def event_generator():
         # Start executor in a thread so we don't block the event loop

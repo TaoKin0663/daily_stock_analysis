@@ -14,9 +14,10 @@ import json
 import logging
 import os
 import re
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse, urlunparse
 from dotenv import load_dotenv, dotenv_values
 from dataclasses import dataclass, field
 
@@ -26,6 +27,8 @@ from src.report_language import (
 )
 
 logger = logging.getLogger(__name__)
+_USER_CONFIG_LOCK = threading.RLock()
+_USER_CONFIG_CACHE: Dict[int, "Config"] = {}
 
 
 @dataclass
@@ -526,6 +529,7 @@ class Config:
     agent_skill_dir: Optional[str] = None
     agent_nl_routing: bool = False  # Enable natural language routing in bot dispatcher
     agent_arch: str = "single"     # Agent architecture: 'single' (legacy) or 'multi' (orchestrator)
+    agent_model_map: Dict[str, str] = field(default_factory=dict)  # Per-agent model overrides (JSON map)
     agent_orchestrator_mode: str = "standard"  # Orchestrator mode: quick/standard/full/specialist
     agent_orchestrator_timeout_s: int = 600  # Cooperative timeout budget for the whole multi-agent pipeline
     agent_risk_override: bool = True  # Allow risk agent to veto buy signals
@@ -557,7 +561,7 @@ class Config:
     email_sender: Optional[str] = None  # 发件人邮箱
     email_sender_name: str = "daily_stock_analysis股票分析助手"  # 发件人显示名称
     email_password: Optional[str] = None  # 邮箱密码/授权码
-    email_receivers: List[str] = field(default_factory=list)  # 收件人列表（留空则发给自己）
+    email_receivers: List[str] = field(default_factory=list)  # 收件人列表（留空则不发送邮件）
 
     # Stock-to-email group routing (Issue #268): STOCK_GROUP_N + EMAIL_GROUP_N
     # When configured, each group's report is sent to that group's emails only.
@@ -633,6 +637,7 @@ class Config:
     prefetch_realtime_quotes: bool = True
 
     # === 数据库配置 ===
+    database_url: str = ""
     database_path: str = "./data/stock_analysis.db"
     sqlite_wal_enabled: bool = True
     sqlite_busy_timeout_ms: int = 5000
@@ -837,9 +842,21 @@ class Config:
         """
         cls._capture_bootstrap_runtime_env_overrides()
         preexisting_report_language = os.environ.get("REPORT_LANGUAGE")
+        preexisting_database_url = os.environ.get("DATABASE_URL")
+        preexisting_database_path = os.environ.get("DATABASE_PATH")
 
         # 确保环境变量已加载
         setup_env()
+
+        # 注入 DB system_configs（DB 值优先于 .env；DB 未就绪时静默跳过）
+        try:
+            from src.storage import DatabaseManager
+            instance = getattr(DatabaseManager, "_instance", None)
+            if instance is not None and getattr(instance, "_initialized", False):
+                db_config = DatabaseManager.get_instance().get_system_config_map()
+                os.environ.update(db_config)
+        except Exception:
+            pass
 
         # === 智能代理配置 (关键修复) ===
         # 如果配置了代理，自动设置 NO_PROXY 以排除国内数据源，避免行情获取失败
@@ -1185,6 +1202,7 @@ class Config:
             agent_skill_dir=os.getenv('AGENT_SKILL_DIR') or os.getenv('AGENT_STRATEGY_DIR'),
             agent_nl_routing=os.getenv('AGENT_NL_ROUTING', 'false').lower() == 'true',
             agent_arch=os.getenv('AGENT_ARCH', 'single').lower(),
+            agent_model_map=cls._parse_agent_model_map(os.getenv('AGENT_MODEL_MAP', '')),
             agent_orchestrator_mode=os.getenv('AGENT_ORCHESTRATOR_MODE', 'standard').lower(),
             agent_orchestrator_timeout_s=parse_env_int(
                 os.getenv('AGENT_ORCHESTRATOR_TIMEOUT_S'),
@@ -1282,6 +1300,10 @@ class Config:
             ),
             md2img_engine=cls._parse_md2img_engine(os.getenv('MD2IMG_ENGINE', 'wkhtmltoimage')),
             prefetch_realtime_quotes=os.getenv('PREFETCH_REALTIME_QUOTES', 'true').lower() == 'true',
+            database_url=cls._resolve_database_url(
+                preexisting_database_url=preexisting_database_url,
+                preexisting_database_path=preexisting_database_path,
+            ),
             database_path=os.getenv('DATABASE_PATH', './data/stock_analysis.db'),
             sqlite_wal_enabled=os.getenv('SQLITE_WAL_ENABLED', 'true').lower() == 'true',
             sqlite_busy_timeout_ms=parse_env_int(
@@ -1842,6 +1864,42 @@ class Config:
         )
 
     @classmethod
+    def _parse_agent_model_map(cls, value: Optional[str]) -> Dict[str, str]:
+        """Parse AGENT_MODEL_MAP JSON string into per-agent model overrides.
+
+        Format: {"technical": "openai/gpt-4o-mini", "intel": "openai/gpt-4o", ...}
+        Invalid entries are silently dropped with a warning.
+        """
+        if not value or not value.strip():
+            return {}
+        try:
+            raw = json.loads(value)
+        except json.JSONDecodeError:
+            logging.getLogger(__name__).warning(
+                "AGENT_MODEL_MAP is not valid JSON, ignored: %s", value
+            )
+            return {}
+        if not isinstance(raw, dict):
+            logging.getLogger(__name__).warning(
+                "AGENT_MODEL_MAP must be a JSON object, got %s, ignored", type(raw).__name__
+            )
+            return {}
+        result: Dict[str, str] = {}
+        valid_agent_names = {"technical", "intel", "risk", "decision"}
+        for agent_name, model in raw.items():
+            agent_name = agent_name.strip().lower()
+            if agent_name not in valid_agent_names:
+                logging.getLogger(__name__).warning(
+                    "AGENT_MODEL_MAP: unknown agent name '%s', skipped (valid: %s)",
+                    agent_name,
+                    ", ".join(sorted(valid_agent_names)),
+                )
+                continue
+            if isinstance(model, str) and model.strip():
+                result[agent_name] = model.strip()
+        return result
+
+    @classmethod
     def _parse_market_review_region(cls, value: str) -> str:
         """解析大盘复盘市场区域，非法值记录警告后回退为 cn"""
         import logging
@@ -2289,15 +2347,129 @@ class Config:
         
         自动创建数据库目录（如果不存在）
         """
+        if self.database_url:
+            db_url = self.database_url.strip()
+            if db_url.startswith("sqlite:///"):
+                db_path_value = db_url[len("sqlite:///") :]
+                if db_path_value and db_path_value.lower() != ":memory:":
+                    Path(db_path_value).expanduser().parent.mkdir(parents=True, exist_ok=True)
+            return db_url
+
         db_path = Path(self.database_path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         return f"sqlite:///{db_path.absolute()}"
+
+    @classmethod
+    def _resolve_database_url(
+        cls,
+        *,
+        preexisting_database_url: Optional[str],
+        preexisting_database_path: Optional[str],
+    ) -> str:
+        """Return DATABASE_URL while preserving explicit DATABASE_PATH test/local overrides."""
+        database_url = (os.getenv('DATABASE_URL') or '').strip()
+        postgres_host = (os.getenv("POSTGRES_HOST") or "").strip()
+        file_database_url = cls._get_env_file_value("DATABASE_URL")
+        file_database_path = cls._get_env_file_value("DATABASE_PATH")
+        database_path_is_explicit = (
+            preexisting_database_path is not None
+            and (
+                file_database_path is None
+                or preexisting_database_path != file_database_path
+            )
+        )
+        database_url_is_only_dotenv = (
+            preexisting_database_url is None
+            or (
+                file_database_url is not None
+                and preexisting_database_url == file_database_url
+            )
+        )
+        if (
+            os.getenv("ENV_FILE")
+            and preexisting_database_path is not None
+            and file_database_url is None
+            and file_database_path is not None
+            and preexisting_database_path == file_database_path
+        ):
+            return ""
+        if database_path_is_explicit and database_url_is_only_dotenv:
+            return ""
+        if database_url:
+            return cls._rewrite_local_postgres_url_for_container(database_url, postgres_host)
+        if postgres_host:
+            postgres_user = quote_plus(os.getenv("POSTGRES_USER", "dsa"))
+            postgres_password = quote_plus(os.getenv("POSTGRES_PASSWORD", "dsa_password"))
+            postgres_db = quote_plus(os.getenv("POSTGRES_DB", "daily_stock_analysis"))
+            postgres_port = (
+                os.getenv("POSTGRES_INTERNAL_PORT")
+                or os.getenv("POSTGRES_PORT")
+                or "5432"
+            )
+            return (
+                f"postgresql+psycopg://{postgres_user}:{postgres_password}"
+                f"@{postgres_host}:{postgres_port}/{postgres_db}"
+            )
+        return database_url
+
+    @staticmethod
+    def _rewrite_local_postgres_url_for_container(database_url: str, postgres_host: str) -> str:
+        """Rewrite localhost PostgreSQL URLs when running inside Docker Compose."""
+        if not postgres_host:
+            return database_url
+        parsed = urlparse(database_url)
+        if not parsed.scheme.startswith("postgresql"):
+            return database_url
+        if parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+            return database_url
+
+        userinfo = ""
+        if parsed.username:
+            userinfo = quote_plus(parsed.username)
+            if parsed.password is not None:
+                userinfo += f":{quote_plus(parsed.password)}"
+            userinfo += "@"
+        postgres_port = os.getenv("POSTGRES_INTERNAL_PORT") or "5432"
+        return urlunparse(parsed._replace(netloc=f"{userinfo}{postgres_host}:{postgres_port}"))
 
 
 # === 便捷的配置访问函数 ===
 def get_config() -> Config:
     """获取全局配置实例的快捷方式"""
+    try:
+        from src.user_context import get_current_user_id
+        user_id = get_current_user_id()
+    except Exception:
+        user_id = None
+    if user_id is not None:
+        with _USER_CONFIG_LOCK:
+            cached = _USER_CONFIG_CACHE.get(int(user_id))
+            if cached is not None:
+                return cached
+            base_env = dict(os.environ)
+            try:
+                from src.storage import DatabaseManager
+                instance = getattr(DatabaseManager, "_instance", None)
+                if instance is None or not getattr(instance, "_initialized", False):
+                    return Config.get_instance()
+                overrides = DatabaseManager.get_instance().get_user_config_map(int(user_id))
+                os.environ.update({key: value for key, value in overrides.items()})
+                cfg = Config._load_from_env()
+                _USER_CONFIG_CACHE[int(user_id)] = cfg
+                return cfg
+            finally:
+                os.environ.clear()
+                os.environ.update(base_env)
     return Config.get_instance()
+
+
+def clear_user_config_cache(user_id: Optional[int] = None) -> None:
+    """Clear cached per-user config after settings updates."""
+    with _USER_CONFIG_LOCK:
+        if user_id is None:
+            _USER_CONFIG_CACHE.clear()
+        else:
+            _USER_CONFIG_CACHE.pop(int(user_id), None)
 
 
 # ============================================================

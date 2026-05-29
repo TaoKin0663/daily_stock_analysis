@@ -23,10 +23,10 @@ import re
 from datetime import datetime
 from typing import Optional, Union, Dict, Any
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from api.deps import get_config_dep
+from api.deps import get_config_dep, get_current_user, require_min_balance
 from api.v1.schemas.analysis import (
     AnalyzeRequest,
     AnalysisResultResponse,
@@ -63,6 +63,7 @@ from src.utils.data_processing import (
     extract_fundamental_detail_fields,
     extract_board_detail_fields,
 )
+from src.user_context import CurrentUser
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +142,9 @@ def _resolve_and_normalize_input(raw_value: str) -> str:
 )
 def trigger_analysis(
         request: AnalyzeRequest,
-        config: Config = Depends(get_config_dep)
+        config: Config = Depends(get_config_dep),
+        current_user: CurrentUser = Depends(get_current_user),
+        _credits: None = Depends(require_min_balance),
 ) -> Union[AnalysisResultResponse, JSONResponse]:
     """
     触发股票分析
@@ -231,12 +234,13 @@ def trigger_analysis(
         return _handle_sync_analysis(stock_codes[0], request)
 
     # Async mode submits one task per stock.
-    return _handle_async_analysis_batch(stock_codes, request)
+    return _handle_async_analysis_batch(stock_codes, request, current_user)
 
 
 def _handle_async_analysis_batch(
     stock_codes: list,
-    request: AnalyzeRequest
+    request: AnalyzeRequest,
+    current_user: CurrentUser,
 ) -> JSONResponse:
     """
     Handle asynchronous analysis requests, including batch submission.
@@ -262,6 +266,7 @@ def _handle_async_analysis_batch(
         report_type=request.report_type,
         force_refresh=request.force_refresh,
         notify=notify,
+        owner_user_id=current_user.id,
     )
 
     accepted_tasks, duplicate_errors = task_queue.submit_tasks_batch(**submit_kwargs)
@@ -411,6 +416,7 @@ def get_task_list(
         description="筛选状态：pending, processing, completed, failed（支持逗号分隔多个）"
     ),
     limit: int = Query(20, description="返回数量限制", ge=1, le=100),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> TaskListResponse:
     """
     获取分析任务列表
@@ -425,7 +431,7 @@ def get_task_list(
     task_queue = get_task_queue()
     
     # 获取所有任务
-    all_tasks = task_queue.list_all_tasks(limit=limit)
+    all_tasks = task_queue.list_all_tasks(limit=limit, owner_user_id=current_user.id)
     
     # 状态筛选
     if status:
@@ -433,7 +439,7 @@ def get_task_list(
         all_tasks = [t for t in all_tasks if t.status.value in status_list]
     
     # 统计信息
-    stats = task_queue.get_task_stats()
+    stats = task_queue.get_task_stats(owner_user_id=current_user.id)
     
     # 转换为 Schema
     task_infos = [
@@ -475,7 +481,7 @@ def get_task_list(
     summary="任务状态 SSE 流",
     description="通过 Server-Sent Events 实时推送任务状态变化"
 )
-async def task_stream():
+async def task_stream(current_user: CurrentUser = Depends(get_current_user)):
     """
     SSE 任务状态流
     
@@ -499,7 +505,7 @@ async def task_stream():
         yield _format_sse_event("connected", {"message": "Connected to task stream"})
         
         # 发送当前进行中的任务
-        pending_tasks = task_queue.list_pending_tasks()
+        pending_tasks = task_queue.list_pending_tasks(owner_user_id=current_user.id)
         for task in pending_tasks:
             yield _format_sse_event("task_created", task.to_dict())
         
@@ -511,7 +517,10 @@ async def task_stream():
                 try:
                     # 等待事件，超时发送心跳
                     event = await asyncio.wait_for(event_queue.get(), timeout=30)
-                    yield _format_sse_event(event["type"], event["data"])
+                    data = event["data"]
+                    if data.get("owner_user_id") != current_user.id:
+                        continue
+                    yield _format_sse_event(event["type"], data)
                 except asyncio.TimeoutError:
                     # 心跳
                     yield _format_sse_event("heartbeat", {
@@ -562,7 +571,10 @@ def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
     summary="查询分析任务状态",
     description="根据 task_id 查询单个任务的状态"
 )
-def get_analysis_status(task_id: str) -> TaskStatus:
+def get_analysis_status(
+    task_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> TaskStatus:
     """
     查询分析任务状态
     
@@ -579,7 +591,7 @@ def get_analysis_status(task_id: str) -> TaskStatus:
     """
     # 1. 先从任务队列查询
     task_queue = get_task_queue()
-    task = task_queue.get_task(task_id)
+    task = task_queue.get_task_for_user(task_id, current_user.id)
     
     if task:
         return TaskStatus(
@@ -597,7 +609,7 @@ def get_analysis_status(task_id: str) -> TaskStatus:
     try:
         from src.storage import DatabaseManager
         db = DatabaseManager.get_instance()
-        records = db.get_analysis_history(query_id=task_id, limit=1)
+        records = db.get_analysis_history(query_id=task_id, limit=1, owner_user_id=current_user.id)
 
         if records:
             record = records[0]

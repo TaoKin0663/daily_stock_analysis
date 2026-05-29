@@ -28,6 +28,7 @@ class BacktestServiceTestCase(unittest.TestCase):
         Config._instance = None
         DatabaseManager.reset_instance()
         self.db = DatabaseManager.get_instance()
+        self.owner_user_id = self.db.ensure_default_admin_user()
 
         # Ensure analysis is old enough for default min_age_days=14
         old_created_at = datetime(2024, 1, 1, 0, 0, 0)
@@ -35,6 +36,7 @@ class BacktestServiceTestCase(unittest.TestCase):
         with self.db.get_session() as session:
             session.add(
                 AnalysisHistory(
+                    owner_user_id=self.owner_user_id,
                     query_id="q1",
                     code="600519",
                     name="贵州茅台",
@@ -86,6 +88,7 @@ class BacktestServiceTestCase(unittest.TestCase):
         with self.db.get_session() as session:
             session.add(
                 AnalysisHistory(
+                    owner_user_id=self.owner_user_id,
                     query_id=query_id,
                     code="600519",
                     name="贵州茅台",
@@ -205,6 +208,44 @@ class BacktestServiceTestCase(unittest.TestCase):
             self.assertEqual(stock.total_evaluations, 1)
             self.assertEqual(stock.completed_count, 1)
             self.assertEqual(stock.win_count, 1)
+
+    def test_summary_upsert_matches_existing_database_unique_key(self) -> None:
+        """Existing summaries with a different owner should be updated, not inserted."""
+        service = BacktestService(self.db)
+
+        with self.db.get_session() as session:
+            session.add(
+                BacktestSummary(
+                    scope="overall",
+                    code=OVERALL_SENTINEL_CODE,
+                    eval_window_days=3,
+                    engine_version="v1",
+                    owner_user_id=self.owner_user_id + 1,
+                    total_evaluations=99,
+                )
+            )
+            session.commit()
+
+        stats = service.run_backtest(
+            code="600519",
+            force=False,
+            eval_window_days=3,
+            min_age_days=0,
+            limit=10,
+            owner_user_id=self.owner_user_id,
+        )
+
+        self.assertEqual(stats["saved"], 1)
+        with self.db.get_session() as session:
+            rows = session.query(BacktestSummary).filter(
+                BacktestSummary.scope == "overall",
+                BacktestSummary.code == OVERALL_SENTINEL_CODE,
+                BacktestSummary.eval_window_days == 3,
+                BacktestSummary.engine_version == "v1",
+            ).all()
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0].owner_user_id, self.owner_user_id)
+            self.assertEqual(rows[0].total_evaluations, 1)
 
     def test_get_summary_overall_returns_sentinel_as_none(self) -> None:
         """Verify get_summary translates __overall__ sentinel back to None."""
@@ -332,6 +373,7 @@ class BacktestServiceTestCase(unittest.TestCase):
             session.add_all([
                 BacktestResult(
                     analysis_history_id=base_result.analysis_history_id,
+                    owner_user_id=self.owner_user_id,
                     code=base_result.code,
                     analysis_date=base_result.analysis_date,
                     eval_window_days=1,
@@ -350,6 +392,7 @@ class BacktestServiceTestCase(unittest.TestCase):
                 ),
                 BacktestResult(
                     analysis_history_id=base_result.analysis_history_id,
+                    owner_user_id=self.owner_user_id,
                     code=base_result.code,
                     analysis_date=base_result.analysis_date,
                     eval_window_days=3,
@@ -448,6 +491,7 @@ class BacktestServiceTestCase(unittest.TestCase):
             # Second stock with sell advice -- price drops (win for cash/down)
             session.add(
                 AnalysisHistory(
+                    owner_user_id=self.owner_user_id,
                     query_id="q2",
                     code="000001",
                     name="平安银行",

@@ -8,6 +8,7 @@ const categoryTitleMap: Record<SystemConfigCategory, string> = {
   system: '系统设置',
   agent: 'Agent 设置',
   backtest: '回测配置',
+  payment: '付费与计费',
   uncategorized: '其他',
 };
 
@@ -19,6 +20,7 @@ const categoryDescriptionMap: Partial<Record<SystemConfigCategory, string>> = {
   system: '管理调度、日志、端口等系统级参数。',
   agent: '管理 Agent 模式、策略与多 Agent 编排配置。',
   backtest: '管理回测开关、评估窗口和引擎参数。',
+  payment: '管理积分定价与按量计费参数。',
   uncategorized: '其他未归类的配置项。',
 };
 
@@ -77,6 +79,7 @@ const fieldTitleMap: Record<string, string> = {
   AGENT_SKILL_AUTOWEIGHT: '策略自动加权',
   AGENT_SKILL_ROUTING: '策略路由模式',
   AGENT_MEMORY_ENABLED: '记忆与校准',
+  AGENT_MODEL_MAP: 'Agent 模型分配',
   BACKTEST_ENABLED: '启用回测',
   BACKTEST_EVAL_WINDOW_DAYS: '回测评估窗口（交易日）',
   BACKTEST_MIN_AGE_DAYS: '回测最小历史天数',
@@ -139,6 +142,7 @@ const fieldDescriptionMap: Record<string, string> = {
   AGENT_SKILL_AUTOWEIGHT: "根据回测表现自动调整策略权重。",
   AGENT_SKILL_ROUTING: "策略选择方式。auto 按市场状态自动选择，manual 使用 AGENT_SKILLS 列表。",
   AGENT_MEMORY_ENABLED: "启用记忆与校准系统，追踪历史分析准确率并自动调节置信度。",
+  AGENT_MODEL_MAP: "为每个 Agent 指定独立模型。留空则继承 Agent 主模型。支持 technical、intel、risk、decision 四个核心 Agent 和技能 Agent。",
   BACKTEST_ENABLED: '是否启用回测功能（true/false）。',
   BACKTEST_EVAL_WINDOW_DAYS: '回测评估窗口长度，单位为交易日。',
   BACKTEST_MIN_AGE_DAYS: '仅回测早于该天数的分析记录。',

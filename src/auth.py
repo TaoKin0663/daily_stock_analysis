@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
-"""
-Web admin authentication module.
+﻿# -*- coding: utf-8 -*-
+"""Web authentication module.
 
-Single toggle (ADMIN_AUTH_ENABLED) + file-based credentials.
-First login sets initial password; supports web change-password and CLI reset.
+Login is mandatory. The legacy ADMIN_AUTH_ENABLED setting is kept only so older
+.env files and settings payloads do not break while the runtime always requires
+password authentication.
 """
 
 from __future__ import annotations
 
 import base64
+import json
 import getpass
 import hashlib
 import hmac
@@ -25,11 +26,19 @@ from dotenv import dotenv_values
 logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "dsa_session"
+WEB_COOKIE_NAME = "dsa_web_session"
+ADMIN_COOKIE_NAME = "dsa_admin_session"
+AUTH_CLIENT_HEADER = "x-dsa-auth-client"
+AUTH_CLIENT_WEB = "web"
+AUTH_CLIENT_ADMIN = "admin"
+SESSION_SUBJECT_WEB_USER = "web_user"
+SESSION_SUBJECT_ADMIN_USER = "admin_user"
 PBKDF2_ITERATIONS = 100_000
 RATE_LIMIT_WINDOW_SEC = 300
 RATE_LIMIT_MAX_FAILURES = 5
 SESSION_MAX_AGE_HOURS_DEFAULT = 24
 MIN_PASSWORD_LEN = 6
+MIN_USERNAME_LEN = 3
 
 # Lazy-loaded state
 _auth_enabled: Optional[bool] = None
@@ -195,11 +204,14 @@ def refresh_auth_state() -> None:
 
 
 def is_auth_enabled() -> bool:
-    """Return whether admin authentication is enabled (ADMIN_AUTH_ENABLED=true)."""
+    """Return whether authentication is enabled.
+
+    Login is mandatory; ADMIN_AUTH_ENABLED is kept only as legacy env metadata.
+    """
     global _auth_enabled
     if _auth_enabled is not None:
         return _auth_enabled
-    _auth_enabled = _is_auth_enabled_from_env()
+    _auth_enabled = True
     return _auth_enabled
 
 
@@ -217,8 +229,6 @@ def verify_stored_password(password: str) -> bool:
 
 def is_password_set() -> bool:
     """Return whether initial password has been set (credential file exists and valid)."""
-    if not is_auth_enabled():
-        return False
     return has_stored_password()
 
 
@@ -229,8 +239,6 @@ def is_password_changeable() -> bool:
 
 def _get_session_secret() -> Optional[bytes]:
     """Return session signing secret."""
-    if not is_auth_enabled():
-        return None
     return _load_session_secret()
 
 
@@ -241,6 +249,173 @@ def _validate_password(pwd: str) -> Optional[str]:
     if len(pwd) < MIN_PASSWORD_LEN:
         return f"密码至少 {MIN_PASSWORD_LEN} 位"
     return None
+
+
+def _normalize_username(username: str) -> str:
+    return (username or "").strip().lower()
+
+
+def _validate_username(username: str) -> Optional[str]:
+    normalized = _normalize_username(username)
+    if len(normalized) < MIN_USERNAME_LEN:
+        return f"用户名至少 {MIN_USERNAME_LEN} 位"
+    allowed = set("abcdefghijklmnopqrstuvwxyz0123456789_-")
+    if any(ch not in allowed for ch in normalized):
+        return "用户名只能包含字母、数字、下划线和短横线"
+    return None
+
+
+def _hash_password(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
+    salt = salt or secrets.token_bytes(32)
+    derived = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt=salt,
+        iterations=PBKDF2_ITERATIONS,
+    )
+    return salt, derived
+
+
+def register_user(username: str, password: str) -> tuple[Optional[dict], Optional[str]]:
+    """Create a user account for open registration."""
+    username_norm = _normalize_username(username)
+    if username_norm == "admin":
+        return None, "admin username is reserved"
+    err = _validate_username(username_norm) or _validate_password(password)
+    if err:
+        return None, err
+
+    from sqlalchemy.exc import IntegrityError
+    from src.storage import DatabaseManager
+
+    db = DatabaseManager.get_instance()
+    if db.get_user_by_username(username_norm):
+        return None, "用户名已存在"
+
+    salt, stored = _hash_password(password)
+    try:
+        row = db.create_user(
+            username=username_norm,
+            password_salt=salt,
+            password_hash=stored,
+            is_admin=False,
+        )
+    except IntegrityError:
+        return None, "用户名已存在"
+    return _user_to_dict(row), None
+
+
+def authenticate_user(username: str, password: str) -> Optional[dict]:
+    """Return user payload when username/password are valid."""
+    from src.storage import DatabaseManager
+
+    username_norm = _normalize_username(username)
+    if username_norm == "admin":
+        return None
+    row = DatabaseManager.get_instance().get_user_by_username(username_norm)
+    if row is None or not row.is_active:
+        return None
+    if not _verify_password_hash(password, row.password_salt, row.password_hash):
+        return None
+    return _user_to_dict(row)
+
+
+def get_user_by_id(user_id: int) -> Optional[dict]:
+    from src.storage import DatabaseManager
+
+    row = DatabaseManager.get_instance().get_user_by_id(int(user_id))
+    if row is None or not row.is_active:
+        return None
+    return _user_to_dict(row)
+
+
+def authenticate_admin_user(username: str, password: str) -> Optional[dict]:
+    """Return isolated admin account payload when credentials are valid."""
+    from src.storage import DatabaseManager
+
+    username_norm = _normalize_username(username)
+    if username_norm != "admin":
+        return None
+    db = DatabaseManager.get_instance()
+    db.ensure_default_admin_account()
+    row = db.get_admin_user_by_username(username_norm)
+    if row is None or not row.is_active:
+        return None
+    if not _verify_password_hash(password, row.password_salt, row.password_hash):
+        return None
+    return _admin_user_to_dict(row)
+
+
+def get_admin_user_by_id(admin_user_id: int) -> Optional[dict]:
+    from src.storage import DatabaseManager
+
+    row = DatabaseManager.get_instance().get_admin_user_by_id(int(admin_user_id))
+    if row is None or not row.is_active:
+        return None
+    return _admin_user_to_dict(row)
+
+
+def _user_to_dict(row) -> dict:
+    role_payload = {}
+    try:
+        from src.storage import DatabaseManager
+
+        role_payload = DatabaseManager.get_instance().get_user_role_payload(
+            int(row.id),
+            is_admin=bool(row.is_admin),
+        )
+    except Exception:
+        role_payload = {}
+    menu_permissions = tuple(role_payload.get("menuKeys") or ())
+    setting_permissions = tuple(role_payload.get("settingKeys") or ())
+    return {
+        "id": int(row.id),
+        "username": str(row.username),
+        "isAdmin": bool(row.is_admin),
+        "is_admin": bool(row.is_admin),
+        "accountType": "web",
+        "role": role_payload or None,
+        "roleKey": role_payload.get("key") if role_payload else None,
+        "roleName": role_payload.get("name") if role_payload else None,
+        "menuPermissions": list(menu_permissions),
+        "settingPermissions": list(setting_permissions),
+        "subjectType": SESSION_SUBJECT_WEB_USER,
+    }
+
+
+def _admin_user_to_dict(row) -> dict:
+    from src.storage import DatabaseManager
+    from src.permissions import ADMIN_MENU_KEYS, ADMIN_SETTING_KEYS, SUPER_ADMIN_ROLE_KEY
+
+    owner_id = DatabaseManager.get_instance().ensure_default_admin_user()
+    return {
+        "id": int(owner_id),
+        "adminUserId": int(row.id),
+        "username": str(row.username),
+        "isAdmin": True,
+        "is_admin": True,
+        "accountType": "admin",
+        "role": {"key": SUPER_ADMIN_ROLE_KEY, "name": "Super Admin"},
+        "roleKey": SUPER_ADMIN_ROLE_KEY,
+        "roleName": "Super Admin",
+        "menuPermissions": list(ADMIN_MENU_KEYS),
+        "settingPermissions": list(ADMIN_SETTING_KEYS),
+        "subjectType": SESSION_SUBJECT_ADMIN_USER,
+    }
+
+
+def _sync_admin_account_password() -> None:
+    if not _password_hash_salt or not _password_hash_stored:
+        return
+    try:
+        from src.storage import DatabaseManager
+
+        DatabaseManager.get_instance().sync_admin_account_password(
+            _password_hash_salt,
+            _password_hash_stored,
+        )
+    except Exception:
+        logger.warning("Failed to sync admin_users password", exc_info=True)
 
 
 def set_initial_password(password: str) -> Optional[str]:
@@ -273,6 +448,7 @@ def set_initial_password(password: str) -> Optional[str]:
         tmp_path.chmod(0o600)
         tmp_path.replace(cred_path)
         _load_credential_from_file()
+        _sync_admin_account_password()
         return None
     except OSError as e:
         logger.error("Failed to write credential file: %s", e)
@@ -281,8 +457,6 @@ def set_initial_password(password: str) -> Optional[str]:
 
 def verify_password(password: str) -> bool:
     """Verify password against stored credential. Constant-time where applicable."""
-    if not is_auth_enabled():
-        return True
     return verify_stored_password(password)
 
 
@@ -290,8 +464,6 @@ def change_password(current: str, new: str) -> Optional[str]:
     """
     Change password. Verifies current, writes new hash. Returns error message or None on success.
     """
-    if not is_auth_enabled():
-        return "认证功能未启用"
     if not is_password_set():
         return "尚未设置密码"
 
@@ -323,48 +495,98 @@ def change_password(current: str, new: str) -> Optional[str]:
         tmp_path.replace(cred_path)
         # Reload into memory so subsequent verify_password uses new hash
         _load_credential_from_file()
+        _sync_admin_account_password()
         return None
     except OSError as e:
         logger.error("Failed to write credential file: %s", e)
         return "密码保存失败"
 
 
-def create_session() -> str:
-    """Create a signed session payload. Format: nonce.ts.signature."""
+def create_session(user: Optional[dict] = None, subject_type: Optional[str] = None) -> str:
+    """Create a signed session payload. Format: payload.signature."""
     secret = _get_session_secret()
     if not secret:
         return ""
-    nonce = secrets.token_urlsafe(32)
-    ts = str(int(time.time()))
-    payload = f"{nonce}.{ts}"
+    if user is None:
+        try:
+            from src.storage import DatabaseManager
+            admin_user_id = DatabaseManager.get_instance().ensure_default_admin_account()
+            user = get_admin_user_by_id(admin_user_id)
+        except Exception:
+            user = None
+    subject_type = subject_type or (user.get("subjectType") if user else None) or SESSION_SUBJECT_WEB_USER
+    body = {
+        "nonce": secrets.token_urlsafe(32),
+        "ts": int(time.time()),
+        "subject_type": subject_type,
+    }
+    if user:
+        subject_id = user.get("adminUserId") if subject_type == SESSION_SUBJECT_ADMIN_USER else user.get("id")
+        body.update({
+            "user_id": int(subject_id),
+            "username": user["username"],
+            "is_admin": bool(user.get("is_admin") or user.get("isAdmin")),
+        })
+    payload = base64.urlsafe_b64encode(
+        json.dumps(body, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii").rstrip("=")
     sig = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"{payload}.{sig}"
 
 
-def verify_session(value: str) -> bool:
-    """Verify session cookie and check expiry."""
+def get_session_payload(value: str) -> Optional[dict]:
+    """Verify session cookie, check expiry, and return payload."""
     secret = _get_session_secret()
     if not secret or not value:
-        return False
+        return None
     parts = value.split(".")
-    if len(parts) != 3:
-        return False
-    nonce, ts_str, sig = parts[0], parts[1], parts[2]
-    payload = f"{nonce}.{ts_str}"
-    expected = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(sig, expected):
-        return False
-    try:
-        ts = int(ts_str)
-    except ValueError:
-        return False
+    if len(parts) == 3:
+        # Legacy nonce.ts.sig token has no user identity.
+        nonce, ts_str, sig = parts[0], parts[1], parts[2]
+        payload = f"{nonce}.{ts_str}"
+        expected = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return None
+        try:
+            ts = int(ts_str)
+        except ValueError:
+            return None
+        body = {"ts": ts}
+    elif len(parts) == 2:
+        payload, sig = parts[0], parts[1]
+        expected = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return None
+        try:
+            padded = payload + ("=" * (-len(payload) % 4))
+            body = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+        except Exception:
+            return None
+        ts = int(body.get("ts") or 0)
+    else:
+        return None
     try:
         max_age_hours = int(os.getenv("ADMIN_SESSION_MAX_AGE_HOURS", str(SESSION_MAX_AGE_HOURS_DEFAULT)))
     except ValueError:
         max_age_hours = SESSION_MAX_AGE_HOURS_DEFAULT
     if time.time() - ts > max_age_hours * 3600:
-        return False
-    return True
+        return None
+    return body
+
+
+def verify_session(value: str) -> bool:
+    """Verify session cookie and check expiry."""
+    return get_session_payload(value) is not None
+
+
+def get_session_user(value: str) -> Optional[dict]:
+    payload = get_session_payload(value)
+    if not payload or not payload.get("user_id"):
+        return None
+    subject_type = payload.get("subject_type") or SESSION_SUBJECT_WEB_USER
+    if subject_type == SESSION_SUBJECT_ADMIN_USER:
+        return get_admin_user_by_id(int(payload["user_id"]))
+    return get_user_by_id(int(payload["user_id"]))
 
 
 def get_client_ip(request) -> str:
@@ -426,8 +648,6 @@ def overwrite_password(new_password: str) -> Optional[str]:
     Overwrite stored password without verifying current. For CLI reset only.
     Returns error message or None on success.
     """
-    if not is_auth_enabled():
-        return "认证功能未启用"
     err = _validate_password(new_password)
     if err:
         return err
@@ -453,6 +673,7 @@ def overwrite_password(new_password: str) -> Optional[str]:
         tmp_path.chmod(0o600)
         tmp_path.replace(cred_path)
         _load_credential_from_file()
+        _sync_admin_account_password()
         return None
     except OSError as e:
         logger.error("Failed to write credential file: %s", e)
@@ -462,9 +683,6 @@ def overwrite_password(new_password: str) -> Optional[str]:
 def reset_password_cli() -> int:
     """Interactive CLI to reset password. Returns exit code."""
     _ensure_env_loaded()
-    if not _is_auth_enabled_from_env():
-        print("Error: Auth is not enabled. Set ADMIN_AUTH_ENABLED=true in .env", file=sys.stderr)
-        return 1
 
     print("Enter new admin password (will not echo):", end=" ")
     pwd = getpass.getpass("")

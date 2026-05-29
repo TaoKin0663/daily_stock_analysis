@@ -67,7 +67,8 @@ class HistoryService:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         page: int = 1,
-        limit: int = 20
+        limit: int = 20,
+        owner_user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Get history analysis list.
@@ -108,7 +109,8 @@ class HistoryService:
                 start_date=start_dt,
                 end_date=end_dt,
                 offset=offset,
-                limit=limit
+                limit=limit,
+                owner_user_id=owner_user_id,
             )
             
             # Convert to response format
@@ -134,7 +136,7 @@ class HistoryService:
             logger.error(f"查询历史列表失败: {e}", exc_info=True)
             return {"total": 0, "items": []}
 
-    def _resolve_record(self, record_id: str):
+    def _resolve_record(self, record_id: str, owner_user_id: Optional[int] = None):
         """
         Resolve a record_id parameter to an AnalysisHistory object.
 
@@ -149,15 +151,19 @@ class HistoryService:
         """
         try:
             int_id = int(record_id)
-            record = self.db.get_analysis_history_by_id(int_id)
+            record = self.db.get_analysis_history_by_id(int_id, owner_user_id=owner_user_id)
             if record:
                 return record
         except (ValueError, TypeError):
             pass
         # Fall back to query_id lookup
-        return self.db.get_latest_analysis_by_query_id(record_id)
+        return self.db.get_latest_analysis_by_query_id(record_id, owner_user_id=owner_user_id)
 
-    def resolve_and_get_detail(self, record_id: str) -> Optional[Dict[str, Any]]:
+    def resolve_and_get_detail(
+        self,
+        record_id: str,
+        owner_user_id: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         Resolve record_id (int PK or query_id string) and return history detail.
 
@@ -168,7 +174,7 @@ class HistoryService:
             Complete analysis report dict, or None
         """
         try:
-            record = self._resolve_record(record_id)
+            record = self._resolve_record(record_id, owner_user_id=owner_user_id)
             if not record:
                 return None
             return self._record_to_detail_dict(record)
@@ -176,7 +182,12 @@ class HistoryService:
             logger.error(f"resolve_and_get_detail failed for {record_id}: {e}", exc_info=True)
             return None
 
-    def resolve_and_get_news(self, record_id: str, limit: int = 20) -> List[Dict[str, str]]:
+    def resolve_and_get_news(
+        self,
+        record_id: str,
+        limit: int = 20,
+        owner_user_id: Optional[int] = None,
+    ) -> List[Dict[str, str]]:
         """
         Resolve record_id (int PK or query_id string) and return associated news.
 
@@ -188,16 +199,20 @@ class HistoryService:
             List of news intel dicts
         """
         try:
-            record = self._resolve_record(record_id)
+            record = self._resolve_record(record_id, owner_user_id=owner_user_id)
             if not record:
                 logger.warning(f"resolve_and_get_news: record not found for {record_id}")
                 return []
-            return self.get_news_intel(query_id=record.query_id, limit=limit)
+            return self.get_news_intel(query_id=record.query_id, limit=limit, owner_user_id=owner_user_id)
         except Exception as e:
             logger.error(f"resolve_and_get_news failed for {record_id}: {e}", exc_info=True)
             return []
 
-    def get_history_detail_by_id(self, record_id: int) -> Optional[Dict[str, Any]]:
+    def get_history_detail_by_id(
+        self,
+        record_id: int,
+        owner_user_id: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         Get history report detail.
 
@@ -211,7 +226,7 @@ class HistoryService:
             Complete analysis report dictionary, or None if not exists
         """
         try:
-            record = self.db.get_analysis_history_by_id(record_id)
+            record = self.db.get_analysis_history_by_id(record_id, owner_user_id=owner_user_id)
             if not record:
                 return None
             return self._record_to_detail_dict(record)
@@ -289,7 +304,11 @@ class HistoryService:
             "context_snapshot": context_snapshot,
         }
 
-    def delete_history_records(self, record_ids: List[int]) -> int:
+    def delete_history_records(
+        self,
+        record_ids: List[int],
+        owner_user_id: Optional[int] = None,
+    ) -> int:
         """
         Delete specified analysis history records.
 
@@ -303,9 +322,14 @@ class HistoryService:
             Exception: Re-raises any storage-layer exception so the API caller
                        receives a proper 500 error instead of a silent success.
         """
-        return self.db.delete_analysis_history_records(record_ids)
+        return self.db.delete_analysis_history_records(record_ids, owner_user_id=owner_user_id)
 
-    def get_news_intel(self, query_id: str, limit: int = 20) -> List[Dict[str, str]]:
+    def get_news_intel(
+        self,
+        query_id: str,
+        limit: int = 20,
+        owner_user_id: Optional[int] = None,
+    ) -> List[Dict[str, str]]:
         """
         Get news intelligence associated with a specified query_id.
 
@@ -317,10 +341,18 @@ class HistoryService:
             List of news intelligence (containing title, snippet, and url)
         """
         try:
-            records = self.db.get_news_intel_by_query_id(query_id=query_id, limit=limit)
+            records = self.db.get_news_intel_by_query_id(
+                query_id=query_id,
+                limit=limit,
+                owner_user_id=owner_user_id,
+            )
 
             if not records:
-                records = self._fallback_news_by_analysis_context(query_id=query_id, limit=limit)
+                records = self._fallback_news_by_analysis_context(
+                    query_id=query_id,
+                    limit=limit,
+                    owner_user_id=owner_user_id,
+                )
 
             items: List[Dict[str, str]] = []
             for record in records:
@@ -339,7 +371,12 @@ class HistoryService:
             logger.error(f"查询新闻情报失败: {e}", exc_info=True)
             return []
 
-    def get_news_intel_by_record_id(self, record_id: int, limit: int = 20) -> List[Dict[str, str]]:
+    def get_news_intel_by_record_id(
+        self,
+        record_id: int,
+        limit: int = 20,
+        owner_user_id: Optional[int] = None,
+    ) -> List[Dict[str, str]]:
         """
         Get associated news intelligence based on analysis history record ID.
 
@@ -354,19 +391,24 @@ class HistoryService:
         """
         try:
             # Look up the corresponding AnalysisHistory record by record_id
-            record = self.db.get_analysis_history_by_id(record_id)
+            record = self.db.get_analysis_history_by_id(record_id, owner_user_id=owner_user_id)
             if not record:
                 logger.warning(f"No analysis record found for record_id={record_id}")
                 return []
 
             # Get query_id from record, then call original method
-            return self.get_news_intel(query_id=record.query_id, limit=limit)
+            return self.get_news_intel(query_id=record.query_id, limit=limit, owner_user_id=owner_user_id)
 
         except Exception as e:
             logger.error(f"根据 record_id 查询新闻情报失败: {e}", exc_info=True)
             return []
 
-    def _fallback_news_by_analysis_context(self, query_id: str, limit: int) -> List[Any]:
+    def _fallback_news_by_analysis_context(
+        self,
+        query_id: str,
+        limit: int,
+        owner_user_id: Optional[int] = None,
+    ) -> List[Any]:
         """
         Fallback by analysis context when direct query_id lookup returns no news.
 
@@ -374,7 +416,11 @@ class HistoryService:
         - URL-level dedup keeps one canonical news row across repeated analyses.
         - Legacy records may have different historical query_id strategies.
         """
-        records = self.db.get_analysis_history(query_id=query_id, limit=1)
+        records = self.db.get_analysis_history(
+            query_id=query_id,
+            limit=1,
+            owner_user_id=owner_user_id,
+        )
         if not records:
             return []
 
@@ -384,7 +430,12 @@ class HistoryService:
 
         # Narrow down to same-stock recent news, then filter by analysis time window.
         days = max(1, (datetime.now() - analysis.created_at).days + 1)
-        candidates = self.db.get_recent_news(code=analysis.code, days=days, limit=max(limit * 5, 50))
+        candidates = self.db.get_recent_news(
+            code=analysis.code,
+            days=days,
+            limit=max(limit * 5, 50),
+            owner_user_id=owner_user_id,
+        )
 
         start_time = analysis.created_at - timedelta(hours=6)
         end_time = analysis.created_at + timedelta(hours=6)
@@ -440,7 +491,11 @@ class HistoryService:
         else:
             return "极度悲观"
 
-    def get_markdown_report(self, record_id: str) -> Optional[str]:
+    def get_markdown_report(
+        self,
+        record_id: str,
+        owner_user_id: Optional[int] = None,
+    ) -> Optional[str]:
         """
         Generate a Markdown report for a single analysis history record.
 
@@ -456,7 +511,7 @@ class HistoryService:
         Raises:
             MarkdownReportGenerationError: If report generation fails due to internal errors
         """
-        record = self._resolve_record(record_id)
+        record = self._resolve_record(record_id, owner_user_id=owner_user_id)
         if not record:
             logger.warning(f"get_markdown_report: record not found for {record_id}")
             return None

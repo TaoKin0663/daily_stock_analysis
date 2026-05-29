@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """Unit tests for src.auth module."""
 
+import base64
 import hashlib
+import json
 import os
 import secrets
 import tempfile
@@ -94,11 +96,14 @@ class AuthSessionTestCase(unittest.TestCase):
             tok = auth.create_session()
             self.assertTrue(tok, "session token should be non-empty")
             parts = tok.split(".")
-            self.assertEqual(len(parts), 3, "format: nonce.ts.signature")
-            nonce, ts, sig = parts
-            self.assertTrue(nonce)
-            self.assertTrue(ts.isdigit())
+            self.assertEqual(len(parts), 2, "format: payload.signature")
+            payload, sig = parts
+            self.assertTrue(payload)
             self.assertTrue(sig)
+            padded = payload + ("=" * (-len(payload) % 4))
+            body = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+            self.assertTrue(body["nonce"])
+            self.assertIsInstance(body["ts"], int)
             return tok
 
         self._patch_env_and_run(test_fn=run)
@@ -208,7 +213,7 @@ class AuthSetPasswordTestCase(unittest.TestCase):
 
         self._run_with_patch(run)
 
-    def test_has_stored_password_remains_true_after_auth_disabled(self) -> None:
+    def test_password_set_remains_true_for_mandatory_auth(self) -> None:
         def run():
             err = auth.set_initial_password("password123")
             self.assertIsNone(err)
@@ -216,11 +221,11 @@ class AuthSetPasswordTestCase(unittest.TestCase):
 
             auth._auth_enabled = False
             self.assertTrue(auth.has_stored_password())
-            self.assertFalse(auth.is_password_set())
+            self.assertTrue(auth.is_password_set())
 
         self._run_with_patch(run)
 
-    def test_verify_stored_password_when_auth_disabled(self) -> None:
+    def test_verify_stored_password_ignores_legacy_auth_flag(self) -> None:
         def run():
             err = auth.set_initial_password("password123")
             self.assertIsNone(err)

@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { ReportLanguage, ReportStrategy as ReportStrategyType } from '../../types/analysis';
-import { Card } from '../common';
+import { Card } from '@heroui/react/card';
 import { DashboardPanelHeader } from '../dashboard';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
 
@@ -20,15 +20,15 @@ const StrategyItem: React.FC<StrategyItemProps> = ({
   value,
   tone,
 }) => (
-  <div className="home-subpanel home-strategy-card p-3" style={{ ['--home-strategy-tone' as string]: `var(${tone})` }}>
+  <div className="relative rounded-xl border border-default-200 bg-default-50 p-4">
     <div className="flex flex-col">
-      <span className="home-strategy-label mb-0.5 text-xs">{label}</span>
-      <span className="home-strategy-value text-lg font-bold font-mono" style={!value ? { color: 'var(--text-muted-text)' } : undefined}>
+      <span className="mb-0.5 text-xs text-default-500">{label}</span>
+      <span className="text-lg font-bold font-mono text-foreground" style={!value ? { opacity: 0.4 } : undefined}>
         {value || '—'}
       </span>
     </div>
     <div
-      className="absolute bottom-0 left-0 right-0 h-0.5"
+      className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-xl"
       style={{ background: `linear-gradient(90deg, transparent, var(${tone}), transparent)` }}
     />
   </div>
@@ -69,17 +69,20 @@ export const ReportStrategy: React.FC<ReportStrategyProps> = ({ strategy, langua
   ];
 
   return (
-    <Card variant="bordered" padding="md" className="home-panel-card">
-      <DashboardPanelHeader
-        eyebrow={text.strategyPoints}
-        title={text.sniperLevels}
-        className="mb-3"
-      />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {strategyItems.map((item) => (
-          <StrategyItem key={item.label} {...item} />
-        ))}
-      </div>
+    <Card>
+      <Card.Header className="pb-0">
+        <DashboardPanelHeader
+          eyebrow={text.strategyPoints}
+          title={text.sniperLevels}
+        />
+      </Card.Header>
+      <Card.Content className="p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {strategyItems.map((item) => (
+            <StrategyItem key={item.label} {...item} />
+          ))}
+        </div>
+      </Card.Content>
     </Card>
   );
 };

@@ -58,6 +58,12 @@ _CATEGORY_DEFINITIONS: List[Dict[str, Any]] = [
         "display_order": 60,
     },
     {
+        "category": "payment",
+        "title": "Payment & Billing",
+        "description": "Credit-based payment and per-token billing settings.",
+        "display_order": 57,
+    },
+    {
         "category": "uncategorized",
         "title": "Uncategorized",
         "description": "Keys not mapped in the field registry.",
@@ -79,13 +85,14 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min_items": 1},
         "display_order": 10,
+        "access_level": "user",
     },
     # ------------------------------------------------------------------
     # AI Model – LiteLLM unified config
     # ------------------------------------------------------------------
     "LITELLM_MODEL": {
-        "title": "Primary Model",
-        "description": "Primary model in provider/model format (e.g. gemini/gemini-3-flash-preview, openai/deepseek-chat, anthropic/claude-3-5-sonnet-20241022). If empty, it is auto-inferred from available API keys or channel declarations.",
+        "title": "主模型",
+        "description": "全局主模型，格式为 供应商/模型名（如 gemini/gemini-3-flash-preview、openai/deepseek-chat、anthropic/claude-3-5-sonnet-20241022）。留空则根据已配置的 API Key 或渠道自动推断。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "text",
@@ -96,10 +103,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 1,
+        "access_level": "admin",
     },
     "AGENT_LITELLM_MODEL": {
-        "title": "Agent Primary Model",
-        "description": "Optional Agent-only primary model in provider/model format. When empty, Agent inherits the primary model. Bare model names are normalized to openai/<model>.",
+        "title": "Agent 主模型",
+        "description": "Agent 专用主模型（可选），格式同主模型。留空则继承全局主模型。裸模型名会自动规范化为 openai/<model> 格式。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "text",
@@ -110,10 +118,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 2,
+        "access_level": "admin",
     },
     "LITELLM_FALLBACK_MODELS": {
-        "title": "Fallback Models",
-        "description": "Comma-separated fallback models tried when the primary model fails (e.g. anthropic/claude-3-5-sonnet-20241022,openai/gpt-4o-mini). Useful for cross-provider redundancy.",
+        "title": "备选模型",
+        "description": "备选模型列表，逗号分隔。主模型调用失败时按顺序依次尝试，用于跨供应商容灾（如 anthropic/claude-3-5-sonnet-20241022,openai/gpt-4o-mini）。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "text",
@@ -124,13 +133,14 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 2,
+        "access_level": "admin",
     },
     # ------------------------------------------------------------------
     # AI Model – Multi-channel LLM configuration
     # ------------------------------------------------------------------
     "LITELLM_CONFIG": {
-        "title": "Advanced Model Routing Config",
-        "description": "Path to an advanced model routing YAML file (expert use). When valid/parseable and yields a model_list, it takes priority over channels and legacy keys; otherwise channels/legacy are used as fallback.",
+        "title": "高级模型路由配置",
+        "description": "高级模型路由 YAML 配置文件路径（专家模式）。解析成功且包含 model_list 时优先级高于渠道和旧版 Key，否则以渠道/旧版 Key 作为回退。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "text",
@@ -141,10 +151,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 3,
+        "access_level": "admin",
     },
     "LLM_CHANNELS": {
-        "title": "LLM Channels",
-        "description": "Channel names (comma-separated). Managed by the channel editor above.",
+        "title": "LLM 渠道列表",
+        "description": "渠道名称列表，逗号分隔，由前端渠道编辑器统一管理。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "text",
@@ -155,10 +166,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 4,
+        "access_level": "admin",
     },
     "LLM_TEMPERATURE": {
-        "title": "Temperature",
-        "description": "Unified sampling temperature for all LLM calls. Range [0.0, 2.0], default 0.7.",
+        "title": "采样温度",
+        "description": "全局 LLM 采样温度，控制输出随机性。范围 [0.0, 2.0]，默认 0.7。值越低输出越确定，越高越发散。",
         "category": "ai_model",
         "data_type": "number",
         "ui_control": "number",
@@ -169,10 +181,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0.0, "max": 2.0},
         "display_order": 5,
+        "access_level": "admin",
     },
     "AIHUBMIX_KEY": {
-        "title": "AIHubmix Key",
-        "description": "AIHubmix one-stop API key – access all mainstream models with a single key, no VPN required. Auto-sets base URL to aihubmix.com/v1. Get key: https://aihubmix.com/?aff=CfMq",
+        "title": "AIHubmix 密钥",
+        "description": "AIHubmix 一站式 API Key，一个 Key 即可调用所有主流模型，无需 VPN。自动设置 Base URL 为 aihubmix.com/v1。获取 Key：https://aihubmix.com/?aff=CfMq",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "password",
@@ -183,13 +196,14 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 5,
+        "access_level": "admin",
     },
     # ------------------------------------------------------------------
     # AI Model – DeepSeek official (independent from OpenAI-compatible)
     # ------------------------------------------------------------------
     "DEEPSEEK_API_KEY": {
-        "title": "DeepSeek API Key",
-        "description": "Official DeepSeek API key (from https://platform.deepseek.com). Auto-infers openai/deepseek-chat when set alone. Also works in multi-channel mode.",
+        "title": "DeepSeek API 密钥",
+        "description": "DeepSeek 官方 API Key（从 https://platform.deepseek.com 获取）。单独设置时自动推断为 openai/deepseek-chat，也支持多渠道模式。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "password",
@@ -200,10 +214,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 6,
+        "access_level": "admin",
     },
     "DEEPSEEK_API_KEYS": {
-        "title": "DeepSeek API Keys (Multi)",
-        "description": "Comma-separated DeepSeek API keys for load balancing. Takes priority over DEEPSEEK_API_KEY.",
+        "title": "DeepSeek API 密钥（多 Key）",
+        "description": "DeepSeek 多 Key 列表，逗号分隔，用于负载均衡。优先级高于单个 DEEPSEEK_API_KEY。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "password",
@@ -214,6 +229,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 7,
+        "access_level": "admin",
     },
     "TUSHARE_TOKEN": {
         "title": "Tushare Token",
@@ -228,6 +244,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 10,
+        "access_level": "admin",
     },
     "TICKFLOW_API_KEY": {
         "title": "TickFlow API Key",
@@ -242,6 +259,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 15,
+        "access_level": "admin",
     },
     "REALTIME_SOURCE_PRIORITY": {
         "title": "Realtime Source Priority",
@@ -256,6 +274,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 20,
+        "access_level": "admin",
     },
     "ENABLE_REALTIME_TECHNICAL_INDICATORS": {
         "title": "Realtime Technical Indicators",
@@ -270,6 +289,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 21,
+        "access_level": "user",
     },
     "ANSPIRE_API_KEYS": {
         "title": "Anspire API Keys",
@@ -284,6 +304,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 22,
+        "access_level": "admin",
     },
     "TAVILY_API_KEYS": {
         "title": "Tavily API Keys",
@@ -298,6 +319,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 30,
+        "access_level": "admin",
     },
     "SERPAPI_API_KEYS": {
         "title": "SerpAPI Keys",
@@ -312,6 +334,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 40,
+        "access_level": "admin",
     },
     "BRAVE_API_KEYS": {
         "title": "Brave API Keys",
@@ -326,6 +349,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 50,
+        "access_level": "admin",
     },
     "BOCHA_API_KEYS": {
         "title": "Bocha API Keys",
@@ -340,6 +364,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 51,
+        "access_level": "admin",
     },
     "MINIMAX_API_KEYS": {
         "title": "MiniMax API Key",
@@ -354,6 +379,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 53,
+        "access_level": "admin",
     },
     "SEARXNG_BASE_URLS": {
         "title": "SearXNG Base URLs",
@@ -373,6 +399,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             "allowed_schemes": ["http", "https"],
         },
         "display_order": 52,
+        "access_level": "admin",
     },
     "SEARXNG_PUBLIC_INSTANCES_ENABLED": {
         "title": "SearXNG Public Instances",
@@ -387,10 +414,12 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 53,
+        "access_level": "admin",
     },
     "ENABLE_REALTIME_QUOTE": {
         "title": "Enable Realtime Quote",
-        "description": "Enable realtime market quotes. Disable to only use historical close prices.",
+        # "description": "Enable realtime market quotes. Disable to only use historical close prices.",
+        "description": "启用实时市场报价。禁用后将仅使用历史收盘价。",
         "category": "data_source",
         "data_type": "boolean",
         "ui_control": "switch",
@@ -401,6 +430,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 22,
+        "access_level": "user",
     },
     "ENABLE_CHIP_DISTRIBUTION": {
         "title": "Enable Chip Distribution",
@@ -415,6 +445,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 23,
+        "access_level": "user",
     },
     "NEWS_MAX_AGE_DAYS": {
         "title": "News Max Age (Days)",
@@ -429,6 +460,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 1, "max": 30},
         "display_order": 60,
+        "access_level": "user",
     },
     "NEWS_STRATEGY_PROFILE": {
         "title": "News Strategy Profile",
@@ -443,10 +475,13 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": ["ultra_short", "short", "medium", "long"],
         "validation": {"enum": ["ultra_short", "short", "medium", "long"]},
         "display_order": 61,
+        "access_level": "user",
     },
     "BIAS_THRESHOLD": {
         "title": "Bias Threshold (%)",
-        "description": "Deviation threshold from MA5 (%). Exceeding this triggers 'do not chase' warning. Strong trend stocks auto-widen to 1.5x.",
+        # "description": "Deviation threshold from MA5 (%). Exceeding this triggers 'do not chase' warning. Strong trend stocks auto-widen to 1.5x.",
+        # "title": "乖离率阈值",
+        "description": "偏离 MA5（5日均线）的乖离率阈值 (%)。超过此阈值将触发“请勿追高”警告。强趋势股会自动放宽至 1.5 倍。",
         "category": "data_source",
         "data_type": "number",
         "ui_control": "number",
@@ -457,6 +492,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0.0, "max": 50.0},
         "display_order": 62,
+        "access_level": "user",
     },
     "PYTDX_HOST": {
         "title": "Pytdx Host",
@@ -471,6 +507,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 55,
+        "access_level": "admin",
     },
     "PYTDX_PORT": {
         "title": "Pytdx Port",
@@ -485,6 +522,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 56,
+        "access_level": "admin",
     },
     "PYTDX_SERVERS": {
         "title": "Pytdx Servers",
@@ -499,10 +537,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 57,
+        "access_level": "admin",
     },
     "GEMINI_API_KEY": {
-        "title": "Gemini API Key",
-        "description": "Single API key for Gemini service (from https://aistudio.google.com).",
+        "title": "Gemini API 密钥",
+        "description": "Gemini 官方 API Key（从 https://aistudio.google.com 获取）。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "password",
@@ -513,10 +552,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 10,
+        "access_level": "admin",
     },
     "GEMINI_API_KEYS": {
-        "title": "Gemini API Keys (Multi)",
-        "description": "Comma-separated Gemini API keys for load balancing. Takes priority over GEMINI_API_KEY.",
+        "title": "Gemini API 密钥（多 Key）",
+        "description": "Gemini 多 Key 列表，逗号分隔，用于负载均衡。优先级高于单个 GEMINI_API_KEY。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "password",
@@ -527,10 +567,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 11,
+        "access_level": "admin",
     },
     "GEMINI_MODEL": {
-        "title": "Gemini Model",
-        "description": "Gemini model name.",
+        "title": "Gemini 模型",
+        "description": "Gemini 模型名称，默认 gemini-3-flash-preview。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "text",
@@ -541,10 +582,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 20,
+        "access_level": "admin",
     },
     "GEMINI_MODEL_FALLBACK": {
-        "title": "Gemini Fallback Model",
-        "description": "Fallback Gemini model name (used when LITELLM_FALLBACK_MODELS is not set and primary is Gemini).",
+        "title": "Gemini 备选模型",
+        "description": "Gemini 备选模型名称，仅当主模型为 Gemini 且未设置 LITELLM_FALLBACK_MODELS 时生效。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "text",
@@ -555,10 +597,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 21,
+        "access_level": "admin",
     },
     "GEMINI_TEMPERATURE": {
-        "title": "Gemini Temperature",
-        "description": "Temperature in range [0.0, 2.0].",
+        "title": "Gemini 温度参数",
+        "description": "Gemini 采样温度，范围 [0.0, 2.0]，默认 0.7。",
         "category": "ai_model",
         "data_type": "number",
         "ui_control": "number",
@@ -569,10 +612,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0.0, "max": 2.0},
         "display_order": 30,
+        "access_level": "admin",
     },
     "OPENAI_API_KEY": {
-        "title": "OpenAI API Key",
-        "description": "API key for OpenAI-compatible service.",
+        "title": "OpenAI API 密钥",
+        "description": "OpenAI 兼容服务的 API Key。支持 OpenAI 官方及所有兼容 OpenAI 协议的中转/代理服务。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "password",
@@ -583,10 +627,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 40,
+        "access_level": "admin",
     },
     "OPENAI_API_KEYS": {
-        "title": "OpenAI API Keys (Multi)",
-        "description": "Comma-separated OpenAI-compatible API keys for load balancing. Takes priority over AIHUBMIX_KEY and OPENAI_API_KEY.",
+        "title": "OpenAI API 密钥（多 Key）",
+        "description": "OpenAI 兼容多 Key 列表，逗号分隔，用于负载均衡。优先级高于 AIHUBMIX_KEY 和 OPENAI_API_KEY。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "password",
@@ -597,10 +642,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 41,
+        "access_level": "admin",
     },
     "OPENAI_BASE_URL": {
         "title": "OpenAI Base URL",
-        "description": "Base URL for OpenAI-compatible endpoint.",
+        "description": "OpenAI 兼容端点的 Base URL。使用中转/代理服务时填写对应地址，如 https://api.deepseek.com/v1。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "text",
@@ -611,10 +657,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 50,
+        "access_level": "admin",
     },
     "OPENAI_MODEL": {
-        "title": "OpenAI Model",
-        "description": "Model name for OpenAI-compatible endpoint.",
+        "title": "OpenAI 模型",
+        "description": "OpenAI 兼容端点的模型名称，默认 gpt-4o-mini。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "text",
@@ -625,10 +672,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 60,
+        "access_level": "admin",
     },
     "OPENAI_VISION_MODEL": {
-        "title": "OpenAI Vision Model",
-        "description": "Model for image extraction (some APIs e.g. DeepSeek lack vision). Leave empty to use OPENAI_MODEL.",
+        "title": "OpenAI 视觉模型",
+        "description": "图片识别专用模型。部分 API（如 DeepSeek）不支持视觉能力，可单独指定。留空则使用 OPENAI_MODEL。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "text",
@@ -639,10 +687,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 61,
+        "access_level": "admin",
     },
     "OPENAI_TEMPERATURE": {
-        "title": "OpenAI Temperature",
-        "description": "Temperature for OpenAI-compatible models in range [0.0, 2.0].",
+        "title": "OpenAI 温度参数",
+        "description": "OpenAI 兼容模型采样温度，范围 [0.0, 2.0]，默认 0.7。",
         "category": "ai_model",
         "data_type": "number",
         "ui_control": "number",
@@ -653,10 +702,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0.0, "max": 2.0},
         "display_order": 62,
+        "access_level": "admin",
     },
     "ANTHROPIC_API_KEY": {
-        "title": "Anthropic API Key",
-        "description": "Anthropic Claude API key (from https://console.anthropic.com).",
+        "title": "Anthropic API 密钥",
+        "description": "Anthropic Claude 官方 API Key（从 https://console.anthropic.com 获取）。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "password",
@@ -667,10 +717,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 35,
+        "access_level": "admin",
     },
     "ANTHROPIC_API_KEYS": {
-        "title": "Anthropic API Keys (Multi)",
-        "description": "Comma-separated Anthropic API keys for load balancing. Takes priority over ANTHROPIC_API_KEY.",
+        "title": "Anthropic API 密钥（多 Key）",
+        "description": "Anthropic 多 Key 列表，逗号分隔，用于负载均衡。优先级高于单个 ANTHROPIC_API_KEY。",
         "category": "ai_model",
         "data_type": "string",
         "ui_control": "password",
@@ -681,9 +732,10 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 35,
+        "access_level": "admin",
     },
     "ANTHROPIC_MODEL": {
-        "title": "Anthropic Model",
+        "title": "Anthropic 模型",
         "description": "Claude 模型名称（如 claude-3-5-sonnet-20241022）。",
         "category": "ai_model",
         "data_type": "string",
@@ -695,9 +747,10 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 36,
+        "access_level": "admin",
     },
     "ANTHROPIC_TEMPERATURE": {
-        "title": "Anthropic Temperature",
+        "title": "Anthropic 温度参数",
         "description": "温度参数，范围 [0.0, 1.0]。",
         "category": "ai_model",
         "data_type": "number",
@@ -709,9 +762,10 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0.0, "max": 1.0},
         "display_order": 37,
+        "access_level": "admin",
     },
     "ANTHROPIC_MAX_TOKENS": {
-        "title": "Anthropic Max Tokens",
+        "title": "Anthropic 最大 Token 数",
         "description": "Anthropic API 响应最大 token 数（默认 8192）。",
         "category": "ai_model",
         "data_type": "number",
@@ -723,6 +777,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 256, "max": 8192},
         "display_order": 38,
+        "access_level": "admin",
     },
     "WECHAT_WEBHOOK_URL": {
         "title": "WeChat Webhook URL",
@@ -737,6 +792,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 10,
+        "access_level": "user",
     },
     "DINGTALK_APP_KEY": {
         "title": "DingTalk App Key",
@@ -751,6 +807,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 20,
+        "access_level": "user",
     },
     "DINGTALK_APP_SECRET": {
         "title": "DingTalk App Secret",
@@ -765,6 +822,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 30,
+        "access_level": "user",
     },
     "PUSHPLUS_TOKEN": {
         "title": "PushPlus Token",
@@ -779,6 +837,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 40,
+        "access_level": "user",
     },
     "CUSTOM_WEBHOOK_URLS": {
         "title": "Custom Webhook URLs",
@@ -793,6 +852,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 50,
+        "access_level": "user",
     },
     "CUSTOM_WEBHOOK_BEARER_TOKEN": {
         "title": "Custom Webhook Bearer Token",
@@ -807,6 +867,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 51,
+        "access_level": "user",
     },
     "WEBHOOK_VERIFY_SSL": {
         "title": "Webhook SSL Verify",
@@ -821,6 +882,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 52,
+        "access_level": "user",
     },
     "REPORT_SUMMARY_ONLY": {
         "title": "Report Summary Only",
@@ -835,6 +897,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 53,
+        "access_level": "user",
     },
     # ------------------------------------------------------------------
     # Notification – Feishu
@@ -855,6 +918,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             "allowed_schemes": ["http", "https"],
         },
         "display_order": 12,
+        "access_level": "user",
     },
     "FEISHU_WEBHOOK_SECRET": {
         "title": "Feishu Webhook Secret",
@@ -869,6 +933,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 13,
+        "access_level": "user",
     },
     "FEISHU_WEBHOOK_KEYWORD": {
         "title": "Feishu Webhook Keyword",
@@ -883,6 +948,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 14,
+        "access_level": "user",
     },
     "FEISHU_APP_ID": {
         "title": "Feishu App ID",
@@ -897,6 +963,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 15,
+        "access_level": "user",
     },
     "FEISHU_APP_SECRET": {
         "title": "Feishu App Secret",
@@ -911,6 +978,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 16,
+        "access_level": "user",
     },
     # ------------------------------------------------------------------
     # Notification – Telegram
@@ -928,6 +996,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 17,
+        "access_level": "user",
     },
     "TELEGRAM_CHAT_ID": {
         "title": "Telegram Chat ID",
@@ -942,6 +1011,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 18,
+        "access_level": "user",
     },
     "TELEGRAM_MESSAGE_THREAD_ID": {
         "title": "Telegram Thread ID",
@@ -956,6 +1026,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 19,
+        "access_level": "user",
     },
     # ------------------------------------------------------------------
     # Notification – Email
@@ -973,6 +1044,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 25,
+        "access_level": "user",
     },
     "EMAIL_PASSWORD": {
         "title": "Email Password",
@@ -987,10 +1059,11 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 26,
+        "access_level": "user",
     },
     "EMAIL_RECEIVERS": {
-        "title": "Email Receivers",
-        "description": "Comma-separated recipient email addresses. Leave empty to send to yourself.",
+        "title": "收件人邮箱",
+        "description": "以逗号分隔的收件人电子邮箱地址。留空则不发送邮件。",
         "category": "notification",
         "data_type": "array",
         "ui_control": "textarea",
@@ -1001,6 +1074,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 27,
+        "access_level": "user",
     },
     # ------------------------------------------------------------------
     # Notification – Discord
@@ -1018,6 +1092,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 33,
+        "access_level": "user",
     },
     "DISCORD_BOT_TOKEN": {
         "title": "Discord Bot Token",
@@ -1032,6 +1107,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 34,
+        "access_level": "user",
     },
     "DISCORD_MAIN_CHANNEL_ID": {
         "title": "Discord Channel ID",
@@ -1046,6 +1122,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 35,
+        "access_level": "user",
     },
     "DISCORD_INTERACTIONS_PUBLIC_KEY": {
         "title": "Discord Interactions Public Key",
@@ -1060,6 +1137,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 36,
+        "access_level": "user",
     },
     # ------------------------------------------------------------------
     # Notification – Slack  (Bot > Webhook when both configured)
@@ -1077,6 +1155,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 37,
+        "access_level": "user",
     },
     "SLACK_CHANNEL_ID": {
         "title": "Slack Channel ID",
@@ -1091,6 +1170,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 38,
+        "access_level": "user",
     },
     "SLACK_WEBHOOK_URL": {
         "title": "Slack Incoming Webhook URL",
@@ -1105,6 +1185,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 39,
+        "access_level": "user",
     },
     # ------------------------------------------------------------------
     # Notification – Pushover
@@ -1122,6 +1203,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 42,
+        "access_level": "user",
     },
     "PUSHOVER_API_TOKEN": {
         "title": "Pushover API Token",
@@ -1136,6 +1218,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 43,
+        "access_level": "user",
     },
     "PUSHPLUS_TOPIC": {
         "title": "PushPlus Topic",
@@ -1150,6 +1233,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 41,
+        "access_level": "user",
     },
     # ------------------------------------------------------------------
     # Notification – Server酱 / misc
@@ -1167,6 +1251,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 45,
+        "access_level": "user",
     },
     "SINGLE_STOCK_NOTIFY": {
         "title": "Single Stock Notify",
@@ -1181,6 +1266,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 54,
+        "access_level": "user",
     },
     "REPORT_TYPE": {
         "title": "Report Type",
@@ -1195,6 +1281,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": ["simple", "full", "brief"],
         "validation": {"enum": ["simple", "full", "brief"]},
         "display_order": 55,
+        "access_level": "user",
     },
     "REPORT_LANGUAGE": {
         "title": "Report Language",
@@ -1212,6 +1299,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         ],
         "validation": {"enum": ["zh", "en"]},
         "display_order": 56,
+        "access_level": "user",
     },
     "REPORT_TEMPLATES_DIR": {
         "title": "Report Templates Dir",
@@ -1226,6 +1314,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 57,
+        "access_level": "user",
     },
     "REPORT_RENDERER_ENABLED": {
         "title": "Report Renderer Enabled",
@@ -1240,6 +1329,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 58,
+        "access_level": "user",
     },
     "REPORT_INTEGRITY_ENABLED": {
         "title": "Report Integrity Enabled",
@@ -1254,6 +1344,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 58,
+        "access_level": "user",
     },
     "REPORT_INTEGRITY_RETRY": {
         "title": "Report Integrity Retry",
@@ -1268,6 +1359,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0, "max": 3},
         "display_order": 59,
+        "access_level": "user",
     },
     "REPORT_HISTORY_COMPARE_N": {
         "title": "Report History Compare N",
@@ -1282,6 +1374,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0, "max": 10},
         "display_order": 60,
+        "access_level": "user",
     },
     "MERGE_EMAIL_NOTIFICATION": {
         "title": "Merge Email Notification",
@@ -1296,6 +1389,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 61,
+        "access_level": "user",
     },
     "SCHEDULE_TIME": {
         "title": "Schedule Time",
@@ -1310,6 +1404,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"pattern": r"^([01]\d|2[0-3]):[0-5]\d$"},
         "display_order": 10,
+        "access_level": "admin",
     },
     "HTTP_PROXY": {
         "title": "HTTP Proxy",
@@ -1324,6 +1419,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 20,
+        "access_level": "admin",
     },
     "LOG_LEVEL": {
         "title": "Log Level",
@@ -1338,6 +1434,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         "validation": {"enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]},
         "display_order": 30,
+        "access_level": "admin",
     },
     "WEBUI_PORT": {
         "title": "Web UI Port",
@@ -1352,6 +1449,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 1, "max": 65535},
         "display_order": 40,
+        "access_level": "admin",
     },
     "RUN_IMMEDIATELY": {
         "title": "Run Immediately",
@@ -1366,6 +1464,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 45,
+        "access_level": "admin",
     },
     "SCHEDULE_ENABLED": {
         "title": "Schedule Enabled",
@@ -1380,6 +1479,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 8,
+        "access_level": "admin",
     },
     "SCHEDULE_RUN_IMMEDIATELY": {
         "title": "Schedule Run Immediately",
@@ -1394,6 +1494,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 11,
+        "access_level": "admin",
     },
     "TRADING_DAY_CHECK_ENABLED": {
         "title": "Trading Day Check",
@@ -1408,6 +1509,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 12,
+        "access_level": "admin",
     },
     "MARKET_REVIEW_ENABLED": {
         "title": "Market Review Enabled",
@@ -1422,6 +1524,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 46,
+        "access_level": "admin",
     },
     "MARKET_REVIEW_REGION": {
         "title": "Market Review Region",
@@ -1436,6 +1539,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": ["cn", "us", "both"],
         "validation": {"enum": ["cn", "us", "both"]},
         "display_order": 47,
+        "access_level": "admin",
     },
     "MAX_WORKERS": {
         "title": "Max Workers",
@@ -1450,6 +1554,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 1, "max": 20},
         "display_order": 50,
+        "access_level": "admin",
     },
     "ANALYSIS_DELAY": {
         "title": "Analysis Delay",
@@ -1464,6 +1569,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0, "max": 60},
         "display_order": 51,
+        "access_level": "admin",
     },
     "DEBUG": {
         "title": "Debug Mode",
@@ -1478,6 +1584,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 55,
+        "access_level": "admin",
     },
     "BACKTEST_ENABLED": {
         "title": "Backtest Enabled",
@@ -1492,6 +1599,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 10,
+        "access_level": "admin",
     },
     "BACKTEST_EVAL_WINDOW_DAYS": {
         "title": "Backtest Eval Window Days",
@@ -1506,6 +1614,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 1, "max": 365},
         "display_order": 20,
+        "access_level": "admin",
     },
     "BACKTEST_MIN_AGE_DAYS": {
         "title": "Backtest Min Age Days",
@@ -1520,6 +1629,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0, "max": 3650},
         "display_order": 30,
+        "access_level": "admin",
     },
     "BACKTEST_ENGINE_VERSION": {
         "title": "Backtest Engine Version",
@@ -1534,6 +1644,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 40,
+        "access_level": "admin",
     },
     "BACKTEST_NEUTRAL_BAND_PCT": {
         "title": "Backtest Neutral Band Pct",
@@ -1548,6 +1659,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0.0, "max": 100.0},
         "display_order": 50,
+        "access_level": "admin",
     },
     "AGENT_MODE": {
         "title": "Agent Mode",
@@ -1562,6 +1674,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 10,
+        "access_level": "user",
     },
     "AGENT_MAX_STEPS": {
         "title": "Agent Max Steps",
@@ -1576,6 +1689,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 1, "max": 50},
         "display_order": 20,
+        "access_level": "user",
     },
     "AGENT_SKILLS": {
         "title": "Agent Strategies",
@@ -1590,6 +1704,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 30,
+        "access_level": "user",
     },
     "AGENT_SKILL_DIR": {
         "title": "Agent Strategy Dir",
@@ -1604,6 +1719,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 40,
+        "access_level": "admin",
     },
     "AGENT_NL_ROUTING": {
         "title": "Agent NL Routing",
@@ -1618,6 +1734,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 50,
+        "access_level": "user",
     },
     "AGENT_ARCH": {
         "title": "Agent Architecture",
@@ -1635,6 +1752,22 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         ],
         "validation": {},
         "display_order": 60,
+        "access_level": "user",
+    },
+    "AGENT_MODEL_MAP": {
+        "title": "Agent Model Map",
+        "description": "JSON object for per-agent model overrides in multi-agent mode. Supported keys: technical, intel, risk, decision. Empty entries inherit the Agent primary model.",
+        "category": "agent",
+        "data_type": "json",
+        "ui_control": "custom",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "",
+        "options": [],
+        "validation": {},
+        "display_order": 61,
+        "access_level": "user",
     },
     "AGENT_ORCHESTRATOR_MODE": {
         "title": "Orchestrator Mode",
@@ -1654,6 +1787,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         ],
         "validation": {"enum": ["quick", "standard", "full", "specialist", "strategy", "skill"]},
         "display_order": 61,
+        "access_level": "user",
     },
     "AGENT_ORCHESTRATOR_TIMEOUT_S": {
         "title": "Agent Timeout",
@@ -1668,6 +1802,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 0, "max": 3600},
         "display_order": 62,
+        "access_level": "user",
     },
     "AGENT_RISK_OVERRIDE": {
         "title": "Risk Agent Override",
@@ -1682,6 +1817,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 63,
+        "access_level": "user",
     },
     "AGENT_DEEP_RESEARCH_BUDGET": {
         "title": "Deep Research Token Budget",
@@ -1696,6 +1832,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 5000, "max": 100000},
         "display_order": 64,
+        "access_level": "user",
     },
     "AGENT_DEEP_RESEARCH_TIMEOUT": {
         "title": "Deep Research Timeout",
@@ -1710,6 +1847,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 30, "max": 600},
         "display_order": 65,
+        "access_level": "user",
     },
     "AGENT_MEMORY_ENABLED": {
         "title": "Agent Memory",
@@ -1724,6 +1862,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 66,
+        "access_level": "user",
     },
     "AGENT_SKILL_AUTOWEIGHT": {
         "title": "Auto-Weight Strategies",
@@ -1738,6 +1877,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 67,
+        "access_level": "user",
     },
     "AGENT_SKILL_ROUTING": {
         "title": "Strategy Routing",
@@ -1755,6 +1895,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         ],
         "validation": {},
         "display_order": 68,
+        "access_level": "user",
     },
     "AGENT_EVENT_MONITOR_ENABLED": {
         "title": "Event Monitor",
@@ -1769,6 +1910,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 69,
+        "access_level": "admin",
     },
     "AGENT_EVENT_MONITOR_INTERVAL_MINUTES": {
         "title": "Event Monitor Interval",
@@ -1783,6 +1925,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {"min": 1, "max": 1440},
         "display_order": 70,
+        "access_level": "admin",
     },
     "AGENT_EVENT_ALERT_RULES_JSON": {
         "title": "Event Alert Rules",
@@ -1797,6 +1940,85 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [],
         "validation": {},
         "display_order": 71,
+        "access_level": "admin",
+    },
+    # ------------------------------------------------------------------
+    # Payment – Credit Pricing
+    # ------------------------------------------------------------------
+    "CREDITS_PER_DOLLAR": {
+        "title": "Credits Per Dollar",
+        "description": "How many credits 1 USD (or 1 whole token) is worth.",
+        "category": "payment",
+        "data_type": "integer",
+        "ui_control": "number",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "100",
+        "options": [],
+        "validation": {"min": 1},
+        "display_order": 7,
+        "access_level": "admin",
+    },
+    "CREDITS_PER_1K_TOKENS": {
+        "title": "Credits Per 1K Tokens",
+        "description": "Credits charged per 1000 LLM tokens consumed.",
+        "category": "payment",
+        "data_type": "integer",
+        "ui_control": "number",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "10",
+        "options": [],
+        "validation": {"min": 1},
+        "display_order": 8,
+        "access_level": "admin",
+    },
+    "DEPOSIT_RECEIVER_ADDRESS": {
+        "title": "Deposit Receiver Address",
+        "description": "Sepolia wallet address that receives ERC20 deposit transfers.",
+        "category": "payment",
+        "data_type": "string",
+        "ui_control": "text",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "",
+        "options": [],
+        "validation": {},
+        "display_order": 9,
+        "access_level": "admin",
+    },
+    "DEPOSIT_TOKEN_ADDRESS": {
+        "title": "Deposit Token Address",
+        "description": "Sepolia ERC20 token contract used for O coin deposits.",
+        "category": "payment",
+        "data_type": "string",
+        "ui_control": "text",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "",
+        "options": [],
+        "validation": {},
+        "display_order": 10,
+        "access_level": "admin",
+    },
+    "DEPOSIT_RPC_URL": {
+        "title": "Deposit RPC URL",
+        "description": "Sepolia JSON-RPC endpoint used by the backend to verify deposit transactions.",
+        "category": "payment",
+        "data_type": "string",
+        "ui_control": "password",
+        "is_sensitive": True,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "",
+        "options": [],
+        "validation": {},
+        "display_order": 11,
+        "access_level": "admin",
     },
 }
 
@@ -1854,6 +2076,7 @@ def get_field_definition(key: str, value_hint: Optional[str] = None) -> Dict[str
         "options": [],
         "validation": {},
         "display_order": 9000,
+        "access_level": "admin",
     }
     return field
 

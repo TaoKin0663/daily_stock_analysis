@@ -70,8 +70,10 @@
 |------|------|
 | AI 模型 | [AIHubMix](https://aihubmix.com/?aff=CfMq)、Gemini、OpenAI 兼容、DeepSeek、通义千问、Claude、Ollama 本地模型 等（统一通过 [LiteLLM](https://github.com/BerriAI/litellm) 调用，支持多 Key 负载均衡）|
 | 行情数据 | AkShare、Tushare、Pytdx、Baostock、YFinance、[Longbridge](https://open.longbridge.com/)（美股/港股首选数据源） |
-| 新闻搜索 | Anspire、Tavily、SerpAPI、Bocha、Brave、MiniMax |
+| 新闻搜索 | Anspire、Tavily、SerpAPI、Bocha、Brave、MiniMax、SearXNG（私有部署，无配额） |
 | 社交舆情 | [Stock Sentiment API](https://api.adanos.org/docs)（Reddit / X / Polymarket，仅美股，可选） |
+
+> **新闻搜索优先级（从高到低）**：Anspire → Bocha → Tavily → Brave → SerpAPI → MiniMax → SearXNG。按顺序尝试，哪个先配了 Key 就用哪个，不会同时调用多个。SearXNG 作为自建兜底，无配额限制，Docker 部署时自动安装。
 
 > **长桥优先策略（仅美/港股）**：在配置 `LONGBRIDGE_APP_KEY` / `LONGBRIDGE_APP_SECRET` / `LONGBRIDGE_ACCESS_TOKEN` 的前提下，美股与港股的 **日线 K 线** 与 **实时行情** 由 **Longbridge 优先拉取**；若长桥失败或部分字段缺失，再由 **YFinance（美股）/ AkShare（港股）** 兜底或合并补全字段。**未配置长桥凭据时不会调用 Longbridge**，美股/港股仍以 YFinance / AkShare 为主数据源（与未集成长桥前的行为一致）。**美股大盘指数**（如 SPX）始终以 YFinance 优先（长桥不提供指数行情）。**A 股**路由不变，仍为 Efinance → AkShare → Tushare → Pytdx → Baostock。详见 `.env.example` 与 [完整指南](docs/full-guide.md) 中长桥说明。
 
@@ -144,7 +146,7 @@
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL（仅文本，不支持图片） | 可选 |
 | `EMAIL_SENDER` | 发件人邮箱（如 `xxx@qq.com`） | 可选 |
 | `EMAIL_PASSWORD` | 邮箱授权码（非登录密码） | 可选 |
-| `EMAIL_RECEIVERS` | 收件人邮箱（多个用逗号分隔，留空则发给自己） | 可选 |
+| `EMAIL_RECEIVERS` | 收件人邮箱（多个用逗号分隔，留空则不发送邮件） | 可选 |
 | `EMAIL_SENDER_NAME` | 邮件发件人显示名称（默认：daily_stock_analysis股票分析助手，支持中文并自动编码邮件头） | 可选 |
 | `STOCK_GROUP_N` / `EMAIL_GROUP_N` | 股票分组发往不同邮箱（如 `STOCK_GROUP_1=600519,300750` `EMAIL_GROUP_1=user1@example.com`） | 可选 |
 | `PUSHPLUS_TOKEN` | PushPlus Token（[获取地址](https://www.pushplus.plus)，国内推送服务） | 可选 |
@@ -277,6 +279,43 @@ cp .env.example .env && vim .env
 python main.py
 ```
 
+#### 数据库选择与 SQLite 回退
+
+项目运行时只会使用一个数据库，不会同时写 PostgreSQL 和 SQLite：
+
+- 配置了 `DATABASE_URL`：使用 PostgreSQL。Docker Compose 会启动内置 PostgreSQL，宿主机端口为 `5435`，数据保存在 Docker volume `postgres_data`。
+- 未配置 `DATABASE_URL`：使用 SQLite，数据保存在 `DATABASE_PATH`，默认是 `./data/stock_analysis.db`。
+
+本机连接 Docker PostgreSQL 时可在 `.env` 中配置：
+
+```env
+DATABASE_URL=postgresql+psycopg://dsa:dsa_password@localhost:5435/daily_stock_analysis
+POSTGRES_DB=daily_stock_analysis
+POSTGRES_USER=dsa
+POSTGRES_PASSWORD=dsa_password
+POSTGRES_PORT=5435
+```
+
+Docker Compose 内部会通过 `POSTGRES_HOST=postgres` 把容器内连接改到 `postgres:5432`，不需要把 `localhost:5435` 写进应用容器。
+
+如果本地运行要退回 SQLite，停止应用后删除或注释 `DATABASE_URL`，并保留：
+
+```env
+DATABASE_PATH=./data/stock_analysis.db
+SQLITE_WAL_ENABLED=true
+SQLITE_BUSY_TIMEOUT_MS=5000
+SQLITE_WRITE_RETRY_MAX=3
+SQLITE_WRITE_RETRY_BASE_DELAY=0.1
+```
+
+如果 Docker Compose 部署要退回 SQLite，把 `DATABASE_URL` 显式改成容器内 SQLite URL：
+
+```env
+DATABASE_URL=sqlite:////app/data/stock_analysis.db
+```
+
+退回后新数据会继续写入 `data/stock_analysis.db`；PostgreSQL volume 中的数据不会自动同步回 SQLite。SQLite 的 `WAL`、`busy_timeout`、`BEGIN IMMEDIATE` 和 locked retry 逻辑只在 SQLite 后端启用；PostgreSQL 使用普通事务、唯一键 upsert 和数据库自身的行级锁机制，不会执行 SQLite 专用锁语法。
+
 如果你不用 Web，推荐直接在 `.env` 里按条写模型渠道：
 
 ```env
@@ -324,6 +363,10 @@ LITELLM_MODEL=openai/deepseek-chat
 利好2：2025年前三季度扣非净利润同比暴涨407.52%，业绩表现强劲。
 📢 最新动态: 【最新消息】舆情显示公司是AI PCB微钻领域龙头，深度绑定全球头部PCB/载板厂。2月5日主力资金净卖出3.63亿元，需关注后续资金流向。
 
+## 用户系统
+
+Web 认证开启后支持用户名注册和多用户数据隔离。普通用户的分析历史、资讯、问股会话、LLM 用量、持仓账户和 Web 配置彼此隔离；公共行情缓存仍共享。详细说明见 [用户系统与数据隔离](docs/user-system.md)。
+
 ---
 生成时间: 18:00
 ```
@@ -363,7 +406,7 @@ LITELLM_MODEL=openai/deepseek-chat
 - **核心页面统一收口**：首页、问股、回测、持仓、设置共用同一套视觉 token、状态原语和表面组件，减少“每页一个风格”的割裂感。
 - **移动端与触屏体验增强**：抽屉遮罩、滚动契约、消息操作可达性和关键按钮语义同步补强，小屏设备上更稳定。
 
-**可选密码保护**：在 `.env` 中设置 `ADMIN_AUTH_ENABLED=true` 可启用 Web 登录，首次访问在网页设置初始密码，保护 Settings 中的 API 密钥等敏感配置。系统设置现支持运行时开启或关闭认证；关闭认证不会删除已保存密码，后续可直接重新启用。认证开启时，`POST /api/v1/auth/logout` 也需要有效会话；如果会话已经过期，前端会直接回到登录页。详见 [完整指南](docs/full-guide.md)。
+**强制登录保护**：Web 与管理后台始终要求登录访问，首次访问会在网页设置初始管理员密码，保护 Settings 中的 API 密钥等敏感配置。`ADMIN_AUTH_ENABLED` 仅保留为旧环境兼容字段，设置为 `false` 也不会关闭登录。`POST /api/v1/auth/logout` 需要有效会话；如果会话已经过期，前端会直接回到登录页。详见 [完整指南](docs/full-guide.md)。
 
 ### 智能导入
 
@@ -432,12 +475,16 @@ LITELLM_MODEL=openai/deepseek-chat
    python main.py --webui       # 启动 Web 界面 + 执行定时分析
    python main.py --webui-only  # 仅启动 Web 界面
    ```
-   启动时会在 `apps/dsa-web` 自动执行 `npm install && npm run build`。
+
+管理后台入口为 `http://127.0.0.1:8000/admin`，仅超管账号可访问。内置 `super_admin`（超管）和 `user`（普通角色）不可删除，新注册用户默认绑定普通角色；管理后台用于给 C 端用户分配角色、`dsa-web` 菜单权限和设置项级别权限，C 端侧边栏不显示管理后台入口。
+   启动时会依次在 `apps/dsa-web` 和 `apps/dsa-admin` 自动执行 `npm install && npm run build`。
    如需关闭自动构建，设置 `WEBUI_AUTO_BUILD=false`，并改为手动执行：
    ```bash
    cd ./apps/dsa-web
-   npm install && npm run build
-   cd ../..
+    npm install && npm run build
+    cd ../dsa-admin
+    npm install && npm run build
+    cd ../..
    ```
 
 访问 `http://127.0.0.1:8000` 即可使用。

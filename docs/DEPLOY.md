@@ -83,7 +83,8 @@ docker-compose -f ./docker/docker-compose.yml exec stock-analyzer python main.py
 ### 5. 数据持久化
 
 数据自动保存在宿主机目录：
-- `./data/` - 数据库文件
+- `postgres_data` Docker volume - PostgreSQL 数据库（Compose 默认）
+- `./data/` - SQLite 回退数据库文件、会话密钥和运行时数据
 - `./logs/` - 日志文件
 - `./reports/` - 分析报告
 
@@ -283,6 +284,8 @@ docker-compose -f ./docker/docker-compose.yml build --no-cache
 检查代理配置，确保服务器能访问 Gemini API。
 
 ### 3. 数据库锁定
+
+Compose 默认使用 PostgreSQL，不会使用 SQLite 的文件级写锁。只有退回 SQLite（删除或注释 `DATABASE_URL`，使用 `DATABASE_PATH`）时，才需要关注 SQLite lock 文件和 `SQLITE_*` 写入参数。
 
 ```bash
 # 停止服务后删除 lock 文件

@@ -560,6 +560,78 @@ class TestOrchestratorModes(unittest.TestCase):
         self.assertIn("Minor sell-down", summary)
 
 
+class TestLLMToolAdapterModelSelection(unittest.TestCase):
+    """Test observable model selection helpers without initializing LiteLLM."""
+
+    def test_model_override_limits_try_order_to_override(self):
+        from src.agent.llm_adapter import LLMToolAdapter
+
+        adapter = LLMToolAdapter.__new__(LLMToolAdapter)
+        adapter._model_override = "openai/gpt-4o-mini"
+        adapter._config = SimpleNamespace()
+
+        self.assertTrue(adapter.has_model_override)
+        self.assertEqual(adapter.get_models_to_try(), ["openai/gpt-4o-mini"])
+
+    def test_no_override_uses_effective_agent_try_order(self):
+        from src.agent.llm_adapter import LLMToolAdapter
+
+        adapter = LLMToolAdapter.__new__(LLMToolAdapter)
+        adapter._model_override = None
+        adapter._config = SimpleNamespace()
+
+        with patch(
+            "src.agent.llm_adapter.get_effective_agent_models_to_try",
+            return_value=("openai/gpt-4o", "deepseek/deepseek-chat"),
+        ):
+            self.assertFalse(adapter.has_model_override)
+            self.assertEqual(
+                adapter.get_models_to_try(),
+                ["openai/gpt-4o", "deepseek/deepseek-chat"],
+            )
+
+
+class TestOrchestratorModelLogging(unittest.TestCase):
+    """Test Agent stage model observability logs."""
+
+    @staticmethod
+    def _make_orchestrator():
+        from src.agent.orchestrator import AgentOrchestrator
+        return AgentOrchestrator(
+            tool_registry=MagicMock(),
+            llm_adapter=MagicMock(),
+            config=SimpleNamespace(),
+        )
+
+    def test_run_stage_agent_logs_planned_and_actual_models(self):
+        orch = self._make_orchestrator()
+
+        class FakeAdapter:
+            has_model_override = True
+
+            def get_models_to_try(self):
+                return ["deepseek/deepseek-chat"]
+
+        stage_result = StageResult(stage_name="technical", status=StageStatus.COMPLETED)
+        stage_result.tokens_used = 123
+        stage_result.duration_s = 4.56
+        stage_result.meta["models_used"] = ["deepseek/deepseek-chat"]
+        agent = MagicMock(agent_name="technical", llm_adapter=FakeAdapter())
+        agent.run.return_value = stage_result
+
+        with self.assertLogs("src.agent.orchestrator", level="INFO") as captured:
+            result = orch._run_stage_agent(agent, AgentContext(query="test"))
+
+        self.assertIs(result, stage_result)
+        logs = "\n".join(captured.output)
+        self.assertIn("stage_start agent=technical", logs)
+        self.assertIn("models_to_try=['deepseek/deepseek-chat']", logs)
+        self.assertIn("override=True", logs)
+        self.assertIn("stage_done agent=technical", logs)
+        self.assertIn("models_used=['deepseek/deepseek-chat']", logs)
+        self.assertIn("tokens=123", logs)
+
+
 class TestOrchestratorExecution(unittest.TestCase):
     """Test main orchestrator execution paths."""
 

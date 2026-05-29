@@ -308,22 +308,20 @@ sudo systemctl reload nginx
 配置成功后，直接用 `http://your-domain.com` 访问即可，不需要带端口号。
 
 > **使用 Nginx 后的注意事项**：
-> - 如果你开启了 Web 登录认证（`ADMIN_AUTH_ENABLED=true`），建议在 `.env` 中把 `TRUST_X_FORWARDED_FOR=true` 一并打开，否则系统可能无法正确识别真实 IP。该选项适用于**单层可信反向代理**（Nginx → App）部署；如果使用多级代理或 CDN（CDN → Nginx → App），登录限流的 key 可能退化为边缘代理 IP 而非真实客户端 IP，需根据实际拓扑评估。
+> - Web 登录认证始终强制开启。使用单层可信反向代理（Nginx → App）部署时，建议在 `.env` 中把 `TRUST_X_FORWARDED_FOR=true` 一并打开，否则系统可能无法正确识别真实 IP。多级代理或 CDN（CDN → Nginx → App）场景下，登录限流的 key 可能退化为边缘代理 IP 而非真实客户端 IP，需根据实际拓扑评估。
 > - 如需 HTTPS，可以用 [Certbot](https://certbot.eff.org/) 自动申请免费的 Let's Encrypt 证书。
 
 ---
 
 ## 安全建议
 
-把 Web 界面暴露到公网之前，强烈建议开启登录密码保护：
-
-在 `.env` 中设置：
+Web 界面始终启用登录密码保护。`ADMIN_AUTH_ENABLED` 仅保留为旧环境兼容字段：
 
 ```env
 ADMIN_AUTH_ENABLED=true
 ```
 
-重启服务后，第一次访问网页时会要求设置初始密码。设置完成后，每次打开设置页面都需要输入密码，可以防止 API Key 等敏感配置被他人看到。
+第一次访问网页时会要求设置初始密码。设置完成后，每次访问 Web 和管理后台都需要登录，可以防止 API Key 等敏感配置被他人看到。
 
 > 如果忘了密码，可以在服务器上执行：`python -m src.auth reset_password`
 

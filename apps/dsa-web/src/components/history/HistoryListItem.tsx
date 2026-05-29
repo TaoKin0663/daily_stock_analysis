@@ -1,5 +1,6 @@
 import type React from 'react';
 import { Badge } from '../common';
+import { Checkbox } from '@heroui/react/checkbox';
 import type { HistoryItem } from '../../types/analysis';
 import { getSentimentColor } from '../../types/analysis';
 import { formatDateTime } from '../../utils/format';
@@ -48,14 +49,18 @@ export const HistoryListItem: React.FC<HistoryListItemProps> = ({
 
   return (
     <div className="flex items-start gap-2 group">
-      <div className="pt-5">
-        <input
-          type="checkbox"
-          checked={isChecked}
+      <div className="pt-4">
+        <Checkbox
+          isSelected={isChecked}
           onChange={() => onToggleChecked(item.id)}
-          disabled={isDeleting}
-          className="h-3.5 w-3.5 cursor-pointer rounded border-subtle-hover bg-transparent accent-primary focus:ring-primary/30 disabled:opacity-50"
-        />
+          isDisabled={isDeleting}
+          aria-label={`选择 ${item.stockCode} 的记录`}
+          className="[&_[data-slot='checkbox-default-indicator--checkmark']]:size-4"
+        >
+          <Checkbox.Control className="size-5 rounded-md before:rounded-md">
+            <Checkbox.Indicator />
+          </Checkbox.Control>
+        </Checkbox>
       </div>
       <button
         type="button"

@@ -37,8 +37,8 @@ export default {
           foreground: 'hsl(var(--muted-foreground))',
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+          DEFAULT: 'hsl(var(--accent-hsl))',
+          foreground: 'hsl(var(--accent-foreground-hsl))',
         },
         popover: {
           DEFAULT: 'hsl(var(--popover))',
@@ -54,9 +54,9 @@ export default {
           glow: 'hsl(var(--primary) / 0.4)',
         },
         purple: {
-          DEFAULT: 'hsl(var(--accent))',
-          dim: 'hsl(var(--accent) / 0.8)',
-          glow: 'hsl(var(--accent) / 0.3)',
+          DEFAULT: 'hsl(var(--accent-hsl))',
+          dim: 'hsl(var(--accent-hsl) / 0.8)',
+          glow: 'hsl(var(--accent-hsl) / 0.3)',
         },
         success: {
           DEFAULT: 'hsl(var(--success))',
@@ -104,8 +104,8 @@ export default {
         'subtle-active': 'hsl(var(--bg-subtle-raw) / 0.15)',
       },
       backgroundImage: {
-        'gradient-purple-cyan': 'linear-gradient(135deg, hsla(var(--accent), 0.2) 0%, hsla(var(--primary), 0.1) 100%)',
-        'gradient-card-border': 'linear-gradient(180deg, hsla(var(--accent), 0.4) 0%, hsla(var(--accent), 0.1) 50%, hsla(var(--primary), 0.2) 100%)',
+        'gradient-purple-cyan': 'linear-gradient(135deg, hsla(var(--accent-hsl), 0.2) 0%, hsla(var(--primary), 0.1) 100%)',
+        'gradient-card-border': 'linear-gradient(180deg, hsla(var(--accent-hsl), 0.4) 0%, hsla(var(--accent-hsl), 0.1) 50%, hsla(var(--primary), 0.2) 100%)',
         'gradient-cyan': 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%)',
         'primary-gradient': 'linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%)',
       },

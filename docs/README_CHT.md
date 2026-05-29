@@ -112,7 +112,7 @@
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL（僅文字，不支援圖片） | 可選 |
 | `EMAIL_SENDER` | 發件人郵箱（如 `xxx@qq.com`） | 可選 |
 | `EMAIL_PASSWORD` | 郵箱授權碼（非登錄密碼） | 可選 |
-| `EMAIL_RECEIVERS` | 收件人郵箱（多個用逗號分隔，留空則發給自己） | 可選 |
+| `EMAIL_RECEIVERS` | 收件人郵箱（多個用逗號分隔，留空則不發送郵件） | 可選 |
 | `WECHAT_WEBHOOK_URL` | 企業微信 Webhook URL | 可選 |
 | `FEISHU_WEBHOOK_URL` | 飛書 Webhook URL | 可選 |
 | `PUSHPLUS_TOKEN` | PushPlus Token（[獲取地址](https://www.pushplus.plus)，國內推送服務） | 可選 |

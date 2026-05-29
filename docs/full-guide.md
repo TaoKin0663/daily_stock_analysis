@@ -84,7 +84,7 @@ daily_stock_analysis/
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL（仅文本，不支持图片） | 可选 |
 | `EMAIL_SENDER` | 发件人邮箱（如 `xxx@qq.com`） | 可选 |
 | `EMAIL_PASSWORD` | 邮箱授权码（非登录密码） | 可选 |
-| `EMAIL_RECEIVERS` | 收件人邮箱（多个用逗号分隔，留空则发给自己） | 可选 |
+| `EMAIL_RECEIVERS` | 收件人邮箱（多个用逗号分隔，留空则不发送邮件） | 可选 |
 | `EMAIL_SENDER_NAME` | 发件人显示名称（默认：daily_stock_analysis股票分析助手） | 可选 |
 | `PUSHPLUS_TOKEN` | PushPlus Token（[获取地址](https://www.pushplus.plus)，国内推送服务） | 可选 |
 | `SERVERCHAN3_SENDKEY` | Server酱³ Sendkey（[获取地址](https://sc3.ft07.com/)，手机APP推送服务） | 可选 |
@@ -228,7 +228,7 @@ daily_stock_analysis/
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL（仅文本，不支持图片） | 可选 |
 | `EMAIL_SENDER` | 发件人邮箱 | 可选 |
 | `EMAIL_PASSWORD` | 邮箱授权码（非登录密码） | 可选 |
-| `EMAIL_RECEIVERS` | 收件人邮箱（逗号分隔，留空发给自己） | 可选 |
+| `EMAIL_RECEIVERS` | 收件人邮箱（逗号分隔，留空则不发送邮件） | 可选 |
 | `EMAIL_SENDER_NAME` | 发件人显示名称 | 可选 |
 | `STOCK_GROUP_N` / `EMAIL_GROUP_N` | 邮件分组路由（Issue #268）：`STOCK_GROUP_N` 应为 `STOCK_LIST` 子集，仅影响邮件收件人，不改变分析范围或其他通知渠道 | 可选 |
 | `CUSTOM_WEBHOOK_URLS` | 自定义 Webhook（逗号分隔） | 可选 |
@@ -328,7 +328,7 @@ daily_stock_analysis/
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | `STOCK_LIST` | 自选股代码（逗号分隔） | - |
-| `ADMIN_AUTH_ENABLED` | Web 登录：设为 `true` 启用密码保护；首次访问在网页设置初始密码，可在「系统设置 > 修改密码」修改；忘记密码执行 `python -m src.auth reset_password` | `false` |
+| `ADMIN_AUTH_ENABLED` | Web 登录兼容字段：登录认证始终启用，设置为 `false` 也不会关闭；首次访问在网页设置初始密码，可在「系统设置 > 修改密码」修改；忘记密码执行 `python -m src.auth reset_password` | `true` |
 | `TRUST_X_FORWARDED_FOR` | 单层可信反向代理部署时设为 `true`，取 `X-Forwarded-For` 最右值作为真实客户端 IP（用于登录限流等）；直连公网时保持 `false` 防伪造。多级代理/CDN 场景下限流 key 可能退化为边缘代理 IP，需额外评估 | `false` |
 | `MAX_WORKERS` | 并发线程数 | `3` |
 | `MARKET_REVIEW_ENABLED` | 启用大盘复盘 | `true` |
@@ -450,6 +450,8 @@ services:
       - "8000:8000"
 ```
 
+当前 Compose 默认同时启动 `postgres` 服务，映射宿主机 `5435` 到容器 `5432`，并在应用容器内通过 `POSTGRES_HOST=postgres` 把本机连接改写到 `postgres:5432`。PostgreSQL 数据保存在 `postgres_data` volume；如需在 Docker 中退回 SQLite，可把 `DATABASE_URL` 显式设置为 `sqlite:////app/data/stock_analysis.db`。
+
 ### `.env` 与数据目录映射说明
 
 无论你使用 `docker run` 还是 Compose，建议同时保留下面两种映射：
@@ -461,7 +463,8 @@ services:
 
 推荐同时映射这几个目录：
 
-- `./data:/app/data`：数据库、缓存和运行时数据
+- `postgres_data`：Compose 默认 PostgreSQL 数据库
+- `./data:/app/data`：SQLite 回退数据库、缓存和运行时数据
 - `./logs:/app/logs`：日志输出
 - `./reports:/app/reports`：生成的分析报告
 - `./strategies:/app/strategies:ro`：自定义策略 YAML（只读挂载）
@@ -950,6 +953,32 @@ python main.py --debug
 日志文件位置：
 - 常规日志：`logs/stock_analysis_YYYYMMDD.log`
 - 调试日志：`logs/stock_analysis_debug_YYYYMMDD.log`
+
+### 数据库后端选择
+
+运行时只会使用一个数据库。配置 `DATABASE_URL` 时使用 PostgreSQL；未配置时回退到 `DATABASE_PATH` 指向的 SQLite 文件，默认 `./data/stock_analysis.db`。
+
+Docker Compose 会启动内置 PostgreSQL，宿主机端口为 `5435`，数据保存在 Docker volume `postgres_data`。本机直连示例：
+
+```env
+DATABASE_URL=postgresql+psycopg://dsa:dsa_password@localhost:5435/daily_stock_analysis
+```
+
+应用容器内部使用 `POSTGRES_HOST=postgres` 和 `POSTGRES_INTERNAL_PORT=5432` 连接同一个 PostgreSQL 服务，避免把宿主机 `localhost:5435` 写入容器内配置。
+
+退回 SQLite 时，停止应用后删除或注释 `DATABASE_URL`，保留：
+
+```env
+DATABASE_PATH=./data/stock_analysis.db
+```
+
+Docker Compose 部署退回 SQLite 时，把 `DATABASE_URL` 改成容器内文件 URL：
+
+```env
+DATABASE_URL=sqlite:////app/data/stock_analysis.db
+```
+
+SQLite 和 PostgreSQL 不会自动互相同步；切换后应用只读取当前选中的数据库。
 
 ### SQLite 写入稳态配置
 

@@ -53,6 +53,7 @@ interface AgentChatState {
 interface AgentChatActions {
   setCurrentRoute: (path: string) => void;
   clearCompletionBadge: () => void;
+  resetState: () => void;
   loadSessions: () => Promise<void>;
   loadInitialSession: () => Promise<void>;
   switchSession: (targetSessionId: string) => Promise<void>;
@@ -81,6 +82,23 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
   setCurrentRoute: (path) => set({ currentRoute: path }),
 
   clearCompletionBadge: () => set({ completionBadge: false }),
+
+  resetState: () => {
+    get().abortController?.abort();
+    const newId = generateUUID();
+    set({
+      messages: [],
+      loading: false,
+      progressSteps: [],
+      sessionId: newId,
+      sessions: [],
+      sessionsLoading: false,
+      chatError: null,
+      hasInitialLoad: false,
+      abortController: null,
+    });
+    localStorage.removeItem(STORAGE_KEY_SESSION);
+  },
 
   loadSessions: async () => {
     set({ sessionsLoading: true });

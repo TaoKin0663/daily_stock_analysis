@@ -36,6 +36,13 @@ x-common: &common
     - WEBUI_HOST=0.0.0.0
     # API_PORT 从 .env 文件读取，无需在此硬编码
 
+    # Docker 内部 SearXNG 地址（覆盖 .env 中的 localhost）
+    - SEARXNG_BASE_URLS=http://searxng:8080/
+
+    # Docker internal PostgreSQL connection. Host access uses localhost:${POSTGRES_PORT:-5435}.
+    - POSTGRES_HOST=postgres
+    - POSTGRES_INTERNAL_PORT=5432
+
     # 代理设置（如果需要）
     # - http_proxy=http://host.docker.internal:10809
     # - https_proxy=http://host.docker.internal:10809
@@ -52,7 +59,51 @@ x-common: &common
       reservations:
         memory: 256M
 
+  depends_on:
+    postgres:
+      condition: service_healthy
+
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stock-postgres
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "${POSTGRES_PORT:-5435}:5432"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # SearXNG 搜索引擎（私有部署，无配额限制）
+  searxng:
+    image: searxng/searxng:latest
+    container_name: stock-searxng
+    restart: unless-stopped
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - ./searxng/limiter.toml:/etc/searxng/limiter.toml:ro
+      - searxng_data:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # 定时任务模式
   analyzer:
     <<: *common
@@ -66,3 +117,7 @@ services:
     # 若使用 network_mode: host，则以下 ports 映射无效，端口由 command 中的 --port 指定
     ports:
       - "${API_PORT:-8000}:${API_PORT:-8000}"
+
+volumes:
+  searxng_data:
+  postgres_data:

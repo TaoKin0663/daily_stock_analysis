@@ -69,7 +69,8 @@ def _max_mtime(paths: Iterable[Path]) -> float:
 
 def _resolve_artifact_index(frontend_dir: Path) -> Path:
     # Prefer static/index.html because it is the configured output path in this repo.
-    static_index = (frontend_dir / ".." / ".." / "static" / "index.html").resolve()
+    static_root = (frontend_dir / ".." / ".." / "static").resolve()
+    static_index = static_root / "admin" / "index.html" if frontend_dir.name == "dsa-admin" else static_root / "index.html"
     dist_index = frontend_dir / "dist" / "index.html"
     build_index = frontend_dir / "build" / "index.html"
     if static_index.exists():
@@ -165,7 +166,7 @@ def _warn_if_assets_missing(artifact_index: Path, frontend_dir: Path) -> None:
         )
 
 
-def prepare_webui_frontend_assets() -> bool:
+def _prepare_frontend_assets(frontend_dir: Path) -> bool:
     """
     Prepare frontend assets for WebUI startup.
 
@@ -177,7 +178,6 @@ def prepare_webui_frontend_assets() -> bool:
     - Do not compile frontend during backend startup.
     - Only check whether existing artifacts are available.
     """
-    frontend_dir = Path(__file__).resolve().parent.parent / "apps" / "dsa-web"
     auto_build_enabled = _is_truthy_env("WEBUI_AUTO_BUILD", "true")
     artifact_index = _resolve_artifact_index(frontend_dir)
 
@@ -234,3 +234,10 @@ def prepare_webui_frontend_assets() -> bool:
         artifact_index,
     )
     return _run_frontend_commands(commands=commands, frontend_dir=frontend_dir)
+
+
+def prepare_webui_frontend_assets() -> bool:
+    """Prepare WebUI and admin frontend assets for startup."""
+    apps_dir = Path(__file__).resolve().parent.parent / "apps"
+    frontend_dirs = [apps_dir / "dsa-web"]
+    return all(_prepare_frontend_assets(frontend_dir) for frontend_dir in frontend_dirs)

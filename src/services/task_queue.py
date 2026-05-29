@@ -71,6 +71,7 @@ class TaskInfo:
     completed_at: Optional[datetime] = None
     original_query: Optional[str] = None
     selection_source: Optional[str] = None
+    owner_user_id: Optional[int] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert task info into an API-friendly dictionary."""
@@ -88,6 +89,7 @@ class TaskInfo:
             "error": self.error,
             "original_query": self.original_query,
             "selection_source": self.selection_source,
+            "owner_user_id": self.owner_user_id,
         }
     
     def copy(self) -> 'TaskInfo':
@@ -107,6 +109,7 @@ class TaskInfo:
             completed_at=self.completed_at,
             original_query=self.original_query,
             selection_source=self.selection_source,
+            owner_user_id=self.owner_user_id,
         )
 
 
@@ -343,6 +346,7 @@ class AnalysisTaskQueue:
         report_type: str = "detailed",
         force_refresh: bool = False,
         notify: bool = True,
+        owner_user_id: Optional[int] = None,
     ) -> Tuple[List[TaskInfo], List[DuplicateTaskError]]:
         """
         Submit analysis tasks in batch.
@@ -361,9 +365,13 @@ class AnalysisTaskQueue:
             if normalized
         ]
 
+        if owner_user_id is None:
+            from src.user_context import get_current_user_id
+            owner_user_id = get_current_user_id()
+
         with self._data_lock:
             for stock_code in canonical_codes:
-                dedupe_key = _dedupe_stock_code_key(stock_code)
+                dedupe_key = f"{owner_user_id or 'anonymous'}:{_dedupe_stock_code_key(stock_code)}"
                 if dedupe_key in self._analyzing_stocks:
                     existing_task_id = self._analyzing_stocks[dedupe_key]
                     duplicates.append(DuplicateTaskError(stock_code, existing_task_id))
@@ -379,6 +387,7 @@ class AnalysisTaskQueue:
                     report_type=report_type,
                     original_query=original_query,
                     selection_source=selection_source,
+                    owner_user_id=owner_user_id,
                 )
                 self._tasks[task_id] = task_info
                 self._analyzing_stocks[dedupe_key] = task_id
@@ -391,6 +400,7 @@ class AnalysisTaskQueue:
                         report_type,
                         force_refresh,
                         notify,
+                        owner_user_id,
                     )
                 except Exception:
                     # Roll back the current batch to avoid partial submission.
@@ -419,7 +429,7 @@ class AnalysisTaskQueue:
 
             task = self._tasks.pop(task_id, None)
             if task:
-                dedupe_key = _dedupe_stock_code_key(task.stock_code)
+                dedupe_key = f"{task.owner_user_id or 'anonymous'}:{_dedupe_stock_code_key(task.stock_code)}"
                 if self._analyzing_stocks.get(dedupe_key) == task_id:
                     del self._analyzing_stocks[dedupe_key]
     
@@ -436,8 +446,14 @@ class AnalysisTaskQueue:
         with self._data_lock:
             task = self._tasks.get(task_id)
             return task.copy() if task else None
+
+    def get_task_for_user(self, task_id: str, owner_user_id: Optional[int]) -> Optional[TaskInfo]:
+        task = self.get_task(task_id)
+        if task and task.owner_user_id == owner_user_id:
+            return task
+        return None
     
-    def list_pending_tasks(self) -> List[TaskInfo]:
+    def list_pending_tasks(self, owner_user_id: Optional[int] = None) -> List[TaskInfo]:
         """
         获取所有进行中的任务（pending + processing）
         
@@ -448,9 +464,10 @@ class AnalysisTaskQueue:
             return [
                 task.copy() for task in self._tasks.values()
                 if task.status in (TaskStatus.PENDING, TaskStatus.PROCESSING)
+                and (owner_user_id is None or task.owner_user_id == owner_user_id)
             ]
     
-    def list_all_tasks(self, limit: int = 50) -> List[TaskInfo]:
+    def list_all_tasks(self, limit: int = 50, owner_user_id: Optional[int] = None) -> List[TaskInfo]:
         """
         获取所有任务（按创建时间倒序）
         
@@ -462,13 +479,13 @@ class AnalysisTaskQueue:
         """
         with self._data_lock:
             tasks = sorted(
-                self._tasks.values(),
+                [t for t in self._tasks.values() if owner_user_id is None or t.owner_user_id == owner_user_id],
                 key=lambda t: t.created_at,
                 reverse=True
             )
             return [t.copy() for t in tasks[:limit]]
     
-    def get_task_stats(self) -> Dict[str, int]:
+    def get_task_stats(self, owner_user_id: Optional[int] = None) -> Dict[str, int]:
         """
         获取任务统计信息
         
@@ -476,14 +493,18 @@ class AnalysisTaskQueue:
             统计信息字典
         """
         with self._data_lock:
+            scoped_tasks = [
+                task for task in self._tasks.values()
+                if owner_user_id is None or task.owner_user_id == owner_user_id
+            ]
             stats = {
-                "total": len(self._tasks),
+                "total": len(scoped_tasks),
                 "pending": 0,
                 "processing": 0,
                 "completed": 0,
                 "failed": 0,
             }
-            for task in self._tasks.values():
+            for task in scoped_tasks:
                 stats[task.status.value] = stats.get(task.status.value, 0) + 1
             return stats
 
@@ -532,6 +553,7 @@ class AnalysisTaskQueue:
         report_type: str,
         force_refresh: bool,
         notify: bool = True,
+        owner_user_id: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         执行分析任务（在线程池中运行）
@@ -560,6 +582,7 @@ class AnalysisTaskQueue:
         try:
             # 导入分析服务（延迟导入避免循环依赖）
             from src.services.analysis_service import AnalysisService
+            from src.user_context import CurrentUser, use_current_user
             
             # 执行分析
             service = AnalysisService()
@@ -567,14 +590,18 @@ class AnalysisTaskQueue:
             def _on_progress(progress: int, message: str) -> None:
                 self.update_task_progress(task_id, progress, message)
 
-            result = service.analyze_stock(
-                stock_code=stock_code,
-                report_type=report_type,
-                force_refresh=force_refresh,
-                query_id=task_id,
-                send_notification=notify,
-                progress_callback=_on_progress,
-            )
+            current_user = None
+            if owner_user_id is not None:
+                current_user = CurrentUser(id=int(owner_user_id), username="", is_admin=False)
+            with use_current_user(current_user):
+                result = service.analyze_stock(
+                    stock_code=stock_code,
+                    report_type=report_type,
+                    force_refresh=force_refresh,
+                    query_id=task_id,
+                    send_notification=notify,
+                    progress_callback=_on_progress,
+                )
             
             if result:
                 # 更新任务状态为完成
@@ -589,7 +616,7 @@ class AnalysisTaskQueue:
                         task.stock_name = result.get("stock_name", task.stock_name)
                         
                         # 从分析中集合移除
-                        dedupe_key = _dedupe_stock_code_key(task.stock_code)
+                        dedupe_key = f"{task.owner_user_id or 'anonymous'}:{_dedupe_stock_code_key(task.stock_code)}"
                         if dedupe_key in self._analyzing_stocks:
                             del self._analyzing_stocks[dedupe_key]
                 
@@ -617,7 +644,7 @@ class AnalysisTaskQueue:
                     task.message = f"分析失败: {error_msg[:50]}"
                     
                     # 从分析中集合移除
-                    dedupe_key = _dedupe_stock_code_key(task.stock_code)
+                    dedupe_key = f"{task.owner_user_id or 'anonymous'}:{_dedupe_stock_code_key(task.stock_code)}"
                     if dedupe_key in self._analyzing_stocks:
                         del self._analyzing_stocks[dedupe_key]
             

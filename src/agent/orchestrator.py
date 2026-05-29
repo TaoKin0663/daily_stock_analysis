@@ -88,6 +88,7 @@ class AgentOrchestrator:
         mode: str = "standard",
         skill_manager=None,
         config=None,
+        agent_model_map: Optional[Dict[str, str]] = None,
     ):
         self.tool_registry = tool_registry
         self.llm_adapter = llm_adapter
@@ -98,6 +99,7 @@ class AgentOrchestrator:
         self.mode = normalized_mode if normalized_mode in VALID_MODES else "standard"
         self.skill_manager = skill_manager
         self.config = config
+        self.agent_model_map = agent_model_map or {}
 
     def _get_timeout_seconds(self) -> int:
         """Return the pipeline timeout in seconds.
@@ -259,6 +261,28 @@ class AgentOrchestrator:
         timeout_seconds: Optional[float] = None,
     ) -> StageResult:
         """Run a stage agent while preserving compatibility with older call signatures."""
+        llm_adapter = getattr(agent, "llm_adapter", None)
+        if hasattr(llm_adapter, "get_models_to_try"):
+            try:
+                models_to_try = llm_adapter.get_models_to_try()
+            except Exception as exc:  # pragma: no cover - diagnostic logging only
+                logger.debug(
+                    "[Orchestrator] failed to inspect models for stage '%s': %s",
+                    getattr(agent, "agent_name", "unknown"),
+                    exc,
+                )
+                models_to_try = []
+        else:
+            models_to_try = []
+
+        logger.info(
+            "[Orchestrator] stage_start agent=%s models_to_try=%s override=%s mode=%s",
+            getattr(agent, "agent_name", "unknown"),
+            models_to_try,
+            bool(getattr(llm_adapter, "has_model_override", False)),
+            self.mode,
+        )
+
         run_kwargs = {"progress_callback": progress_callback}
         if (
             timeout_seconds is not None
@@ -266,7 +290,16 @@ class AgentOrchestrator:
             and self._agent_run_accepts_timeout(agent.run)
         ):
             run_kwargs["timeout_seconds"] = timeout_seconds
-        return agent.run(ctx, **run_kwargs)
+        result = agent.run(ctx, **run_kwargs)
+        logger.info(
+            "[Orchestrator] stage_done agent=%s status=%s models_used=%s tokens=%s duration_s=%s",
+            getattr(agent, "agent_name", "unknown"),
+            getattr(getattr(result, "status", None), "value", getattr(result, "status", None)),
+            (getattr(result, "meta", {}) or {}).get("models_used", []),
+            getattr(result, "tokens_used", 0),
+            getattr(result, "duration_s", 0),
+        )
+        return result
 
     # -----------------------------------------------------------------
     # Public interface (mirrors AgentExecutor)
@@ -582,7 +615,12 @@ class AgentOrchestrator:
     # -----------------------------------------------------------------
 
     def _build_agent_chain(self, ctx: AgentContext) -> list:
-        """Instantiate the ordered agent list based on ``self.mode``."""
+        """Instantiate the ordered agent list based on ``self.mode``.
+
+        When ``agent_model_map`` specifies a model for an agent type, that agent
+        gets its own ``LLMToolAdapter`` with the override model.  Otherwise the
+        shared adapter is used.
+        """
         from src.agent.agents.technical_agent import TechnicalAgent
         from src.agent.agents.intel_agent import IntelAgent
         from src.agent.agents.decision_agent import DecisionAgent
@@ -590,17 +628,32 @@ class AgentOrchestrator:
 
         self._skill_agent_names = set()
 
-        common_kwargs = dict(
-            tool_registry=self.tool_registry,
-            llm_adapter=self.llm_adapter,
-            skill_instructions=self.skill_instructions,
-            technical_skill_policy=self.technical_skill_policy,
-        )
+        def _adapter_for(agent_name: str):
+            model = self.agent_model_map.get(agent_name)
+            if model:
+                logger.info(
+                    "[Orchestrator] Agent '%s' using model override: %s",
+                    agent_name,
+                    model,
+                )
+                from src.agent.llm_adapter import LLMToolAdapter
+                return LLMToolAdapter(config=self.config, model_override=model)
+            return self.llm_adapter
 
-        technical = self._prepare_agent(TechnicalAgent(**common_kwargs))
-        intel = self._prepare_agent(IntelAgent(**common_kwargs))
-        risk = self._prepare_agent(RiskAgent(**common_kwargs))
-        decision = self._prepare_agent(DecisionAgent(**common_kwargs))
+        def _build(agent_cls, agent_name: str, **extra):
+            kwargs = dict(
+                tool_registry=self.tool_registry,
+                llm_adapter=_adapter_for(agent_name),
+                skill_instructions=self.skill_instructions,
+                technical_skill_policy=self.technical_skill_policy,
+                **extra,
+            )
+            return self._prepare_agent(agent_cls(**kwargs))
+
+        technical = _build(TechnicalAgent, "technical")
+        intel = _build(IntelAgent, "intel")
+        risk = _build(RiskAgent, "risk")
+        decision = _build(DecisionAgent, "decision")
 
         if self.mode == "quick":
             return [technical, decision]
@@ -619,16 +672,11 @@ class AgentOrchestrator:
         """Build specialist sub-agents based on requested skills.
 
         Uses the skill router to select applicable skills, then creates
-        lightweight agent wrappers for each.
+        lightweight agent wrappers for each.  Skill agents look up their
+        ``skill_id`` in ``agent_model_map`` for per-skill model overrides.
         """
         try:
             from src.agent.skills.router import SkillRouter
-            common_kwargs = dict(
-                tool_registry=self.tool_registry,
-                llm_adapter=self.llm_adapter,
-                skill_instructions=self.skill_instructions,
-                technical_skill_policy=self.technical_skill_policy,
-            )
             router = SkillRouter()
             selected = router.select_skills(ctx)
             if not selected:
@@ -637,9 +685,22 @@ class AgentOrchestrator:
             from src.agent.skills.skill_agent import SkillAgent
             agents = []
             for skill_id in selected[:3]:  # cap at 3 concurrent skills
+                model = self.agent_model_map.get(skill_id)
+                adapter = self.llm_adapter
+                if model:
+                    logger.info(
+                        "[Orchestrator] Skill '%s' using model override: %s",
+                        skill_id,
+                        model,
+                    )
+                    from src.agent.llm_adapter import LLMToolAdapter
+                    adapter = LLMToolAdapter(config=self.config, model_override=model)
                 agent = self._prepare_agent(SkillAgent(
                     skill_id=skill_id,
-                    **common_kwargs,
+                    tool_registry=self.tool_registry,
+                    llm_adapter=adapter,
+                    skill_instructions=self.skill_instructions,
+                    technical_skill_policy=self.technical_skill_policy,
                 ))
                 agents.append(agent)
             return agents

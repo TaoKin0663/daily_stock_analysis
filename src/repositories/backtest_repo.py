@@ -14,6 +14,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy import and_, delete, desc, func, select
 
 from src.storage import BacktestResult, BacktestSummary, DatabaseManager, AnalysisHistory
+from src.user_context import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +34,19 @@ class BacktestRepository:
         eval_window_days: int,
         engine_version: str,
         force: bool,
+        owner_user_id: Optional[int] = None,
     ) -> List[AnalysisHistory]:
         """Return AnalysisHistory rows eligible for backtest."""
         cutoff_dt = datetime.now() - timedelta(days=min_age_days)
+        if owner_user_id is None:
+            owner_user_id = get_current_user_id()
 
         with self.db.get_session() as session:
             conditions = [AnalysisHistory.created_at <= cutoff_dt]
             if code:
                 conditions.append(AnalysisHistory.code == code)
+            if owner_user_id is not None:
+                conditions.append(AnalysisHistory.owner_user_id == owner_user_id)
 
             query = select(AnalysisHistory).where(and_(*conditions))
 
@@ -103,7 +109,10 @@ class BacktestRepository:
         days: Optional[int],
         offset: int,
         limit: int,
+        owner_user_id: Optional[int] = None,
     ) -> Tuple[List[Tuple[BacktestResult, Optional[str], Optional[str], Optional[datetime]]], int]:
+        if owner_user_id is None:
+            owner_user_id = get_current_user_id()
         with self.db.get_session() as session:
             conditions = self._build_result_conditions(
                 code=code,
@@ -112,6 +121,7 @@ class BacktestRepository:
                 analysis_date_from=analysis_date_from,
                 analysis_date_to=analysis_date_to,
                 days=days,
+                owner_user_id=owner_user_id,
             )
 
             where_clause = and_(*conditions) if conditions else True
@@ -146,8 +156,11 @@ class BacktestRepository:
         analysis_date_from: Optional[date] = None,
         analysis_date_to: Optional[date] = None,
         days: Optional[int] = None,
+        owner_user_id: Optional[int] = None,
     ) -> int:
         """Return the number of matching BacktestResult rows without loading them."""
+        if owner_user_id is None:
+            owner_user_id = get_current_user_id()
         with self.db.get_session() as session:
             conditions = self._build_result_conditions(
                 code=code,
@@ -156,6 +169,7 @@ class BacktestRepository:
                 analysis_date_from=analysis_date_from,
                 analysis_date_to=analysis_date_to,
                 days=days,
+                owner_user_id=owner_user_id,
             )
             where_clause = and_(*conditions) if conditions else True
             count = session.execute(
@@ -175,7 +189,10 @@ class BacktestRepository:
         analysis_date_to: Optional[date] = None,
         days: Optional[int] = None,
         limit: Optional[int] = None,
+        owner_user_id: Optional[int] = None,
     ) -> List[BacktestResult]:
+        if owner_user_id is None:
+            owner_user_id = get_current_user_id()
         with self.db.get_session() as session:
             conditions = self._build_result_conditions(
                 code=code,
@@ -184,6 +201,7 @@ class BacktestRepository:
                 analysis_date_from=analysis_date_from,
                 analysis_date_to=analysis_date_to,
                 days=days,
+                owner_user_id=owner_user_id,
             )
             where_clause = and_(*conditions) if conditions else True
             query = (
@@ -197,7 +215,7 @@ class BacktestRepository:
             return list(rows)
 
     def upsert_summary(self, summary: BacktestSummary) -> None:
-        """Insert or replace summary row by unique key."""
+        """Insert or replace summary row by the database unique key."""
         with self.db.get_session() as session:
             existing = session.execute(
                 select(BacktestSummary)
@@ -213,6 +231,7 @@ class BacktestRepository:
             ).scalar_one_or_none()
 
             if existing:
+                existing.owner_user_id = summary.owner_user_id
                 for attr in (
                     "computed_at",
                     "total_evaluations",
@@ -249,7 +268,10 @@ class BacktestRepository:
         code: Optional[str],
         eval_window_days: Optional[int] = None,
         engine_version: str,
+        owner_user_id: Optional[int] = None,
     ) -> Optional[BacktestSummary]:
+        if owner_user_id is None:
+            owner_user_id = get_current_user_id()
         with self.db.get_session() as session:
             conditions = [
                 BacktestSummary.scope == scope,
@@ -258,6 +280,8 @@ class BacktestRepository:
             ]
             if eval_window_days is not None:
                 conditions.append(BacktestSummary.eval_window_days == eval_window_days)
+            if owner_user_id is not None:
+                conditions.append(BacktestSummary.owner_user_id == owner_user_id)
 
             row = session.execute(
                 select(BacktestSummary)
@@ -300,8 +324,11 @@ class BacktestRepository:
         engine_version: Optional[str] = None,
         analysis_date_from: Optional[date] = None,
         analysis_date_to: Optional[date] = None,
+        owner_user_id: Optional[int] = None,
     ) -> List[int]:
         """Return sorted distinct eval_window_days for matching results."""
+        if owner_user_id is None:
+            owner_user_id = get_current_user_id()
         with self.db.get_session() as session:
             conditions = self._build_result_conditions(
                 code=code,
@@ -310,6 +337,7 @@ class BacktestRepository:
                 analysis_date_from=analysis_date_from,
                 analysis_date_to=analysis_date_to,
                 days=None,
+                owner_user_id=owner_user_id,
             )
             where_clause = and_(*conditions) if conditions else True
             rows = session.execute(
@@ -329,6 +357,7 @@ class BacktestRepository:
         analysis_date_from: Optional[date],
         analysis_date_to: Optional[date],
         days: Optional[int],
+        owner_user_id: Optional[int] = None,
     ) -> List[object]:
         conditions = []
         if code:
@@ -344,4 +373,6 @@ class BacktestRepository:
         if days:
             cutoff = datetime.now() - timedelta(days=int(days))
             conditions.append(BacktestResult.evaluated_at >= cutoff)
+        if owner_user_id is not None:
+            conditions.append(BacktestResult.owner_user_id == owner_user_id)
         return conditions

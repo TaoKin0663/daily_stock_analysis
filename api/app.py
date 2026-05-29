@@ -38,6 +38,7 @@ from src.services.system_config_service import SystemConfigService
 async def app_lifespan(app: FastAPI):
     """Initialize and release shared services for the app lifecycle."""
     app.state.system_config_service = SystemConfigService()
+
     try:
         yield
     finally:
@@ -181,7 +182,7 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
         assets_dir = static_dir / "assets"
         if assets_dir.exists():
             app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
-        
+
         # SPA 路由回退
         @app.get("/{full_path:path}", include_in_schema=False)
         async def serve_spa(request: Request, full_path: str):

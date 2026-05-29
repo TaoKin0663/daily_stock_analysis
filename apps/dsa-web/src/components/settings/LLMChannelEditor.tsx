@@ -160,6 +160,7 @@ interface RuntimeConfig {
   fallbackModels: string[];
   visionModel: string;
   temperature: string;
+  agentModelMap: Record<string, string>;
 }
 
 interface LLMChannelEditorProps {
@@ -168,6 +169,7 @@ interface LLMChannelEditorProps {
   maskToken: string;
   onSaved: (updatedItems: Array<{ key: string; value: string }>) => void | Promise<void>;
   disabled?: boolean;
+  agentArch?: string;
 }
 
 interface ChannelRowProps {
@@ -655,6 +657,28 @@ function normalizeAgentPrimaryModel(model: string): string {
   return `openai/${trimmedModel}`;
 }
 
+function parseAgentModelMap(raw: string): Record<string, string> {
+  if (!raw || !raw.trim()) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      const result: Record<string, string> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        if (typeof v === 'string' && v.trim()) {
+          result[k] = v.trim();
+        }
+      }
+      return result;
+    }
+  } catch { /* ignore parse errors */ }
+  return {};
+}
+
+function serializeAgentModelMap(map: Record<string, string>): string {
+  const entries = Object.entries(map).filter(([, v]) => v.trim());
+  return entries.length ? JSON.stringify(Object.fromEntries(entries)) : '';
+}
+
 function parseRuntimeConfigFromItems(items: Array<{ key: string; value: string }>): RuntimeConfig {
   const itemMap = new Map(items.map((item) => [item.key, item.value]));
   return {
@@ -663,6 +687,7 @@ function parseRuntimeConfigFromItems(items: Array<{ key: string; value: string }
     fallbackModels: splitModels(itemMap.get('LITELLM_FALLBACK_MODELS') || ''),
     visionModel: itemMap.get('VISION_MODEL') || '',
     temperature: resolveTemperatureFromItems(itemMap),
+    agentModelMap: parseAgentModelMap(itemMap.get('AGENT_MODEL_MAP') || ''),
   };
 }
 
@@ -707,6 +732,7 @@ function channelsToUpdateItems(
     updates.push({ key: 'LITELLM_FALLBACK_MODELS', value: runtimeConfig.fallbackModels.join(',') });
     updates.push({ key: 'VISION_MODEL', value: runtimeConfig.visionModel });
     updates.push({ key: 'LLM_TEMPERATURE', value: runtimeConfig.temperature });
+    updates.push({ key: 'AGENT_MODEL_MAP', value: serializeAgentModelMap(runtimeConfig.agentModelMap) });
   }
 
   for (const channel of channels) {
@@ -756,6 +782,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
   maskToken,
   onSaved,
   disabled = false,
+  agentArch = 'single',
 }) => {
   const initialChannels = useMemo(() => parseChannelsFromItems(items), [items]);
   const initialNames = useMemo(() => initialChannels.map((channel) => channel.name), [initialChannels]);
@@ -1106,6 +1133,18 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
     }));
   };
 
+  const setAgentModel = (agentKey: string, model: string) => {
+    setRuntimeConfig((previous) => {
+      const next = { ...previous.agentModelMap };
+      if (model) {
+        next[agentKey] = model;
+      } else {
+        delete next[agentKey];
+      }
+      return { ...previous, agentModelMap: next };
+    });
+  };
+
   const toggleFallbackModel = (model: string) => {
     setRuntimeConfig((previous) => {
       const alreadySelected = previous.fallbackModels.includes(model);
@@ -1245,20 +1284,56 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                     />
                   </div>
 
-                  <div>
-                    <label htmlFor="runtime-agent-primary-model" className="mb-1 block text-xs text-muted-text">Agent 主模型</label>
-                    <Select
-                      id="runtime-agent-primary-model"
-                      value={runtimeConfig.agentPrimaryModel}
-                      onChange={(value) => setRuntimeConfig((previous) => ({
-                        ...previous,
-                        agentPrimaryModel: normalizeAgentPrimaryModel(value),
-                      }))}
-                      options={buildModelOptions(availableModels, runtimeConfig.agentPrimaryModel, '自动（继承普通分析主模型）')}
-                      disabled={busy}
-                      placeholder=""
-                    />
-                  </div>
+                  {agentArch === 'multi' ? (
+                    <div>
+                      <label className="mb-2 block text-xs text-muted-text">
+                        Agent 模型分配（多 Agent 编排）
+                      </label>
+                      <div className="rounded-xl border settings-border-strong settings-surface-overlay-soft p-3 space-y-2">
+                        {[
+                          { key: 'technical', label: 'Technical', desc: '技术面：K线、均线、成交量、筹码' },
+                          { key: 'intel', label: 'Intel', desc: '情报面：新闻搜索、舆情、基本面' },
+                          { key: 'risk', label: 'Risk', desc: '风险面：减持、业绩预警、监管' },
+                          { key: 'decision', label: 'Decision', desc: '综合决策：聚合结论、生成报告' },
+                        ].map((agent) => (
+                          <div key={agent.key} className="flex items-center gap-2">
+                            <Badge variant="history" size="sm">{agent.label}</Badge>
+                            <span className="flex-1 text-[11px] text-muted-text truncate">{agent.desc}</span>
+                            <div className="min-w-[180px]">
+                              <Select
+                                value={runtimeConfig.agentModelMap[agent.key] ?? ''}
+                                onChange={(value) => setAgentModel(agent.key, value)}
+                                options={[
+                                  { value: '', label: `继承主模型${runtimeConfig.primaryModel ? ` (${runtimeConfig.primaryModel})` : ''}` },
+                                  ...availableModels.map((m) => ({ value: m, label: m })),
+                                ]}
+                                disabled={busy}
+                                placeholder={`继承主模型${runtimeConfig.primaryModel ? ` (${runtimeConfig.primaryModel})` : ''}`}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-text">
+                        选择「继承主模型」则使用上方主模型。指定模型后将覆盖主模型。
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <label htmlFor="runtime-agent-primary-model" className="mb-1 block text-xs text-muted-text">Agent 主模型</label>
+                      <Select
+                        id="runtime-agent-primary-model"
+                        value={runtimeConfig.agentPrimaryModel}
+                        onChange={(value) => setRuntimeConfig((previous) => ({
+                          ...previous,
+                          agentPrimaryModel: normalizeAgentPrimaryModel(value),
+                        }))}
+                        options={buildModelOptions(availableModels, runtimeConfig.agentPrimaryModel, '自动（继承普通分析主模型）')}
+                        disabled={busy}
+                        placeholder=""
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="mb-2 block text-xs text-muted-text">备选模型</label>

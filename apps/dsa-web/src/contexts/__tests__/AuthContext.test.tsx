@@ -109,9 +109,9 @@ describe('AuthContext', () => {
     expect(resetDashboardState).toHaveBeenCalled();
   });
 
-  it('does not reset dashboard state when auth is disabled', async () => {
+  it('resets dashboard state during initial logged-out status', async () => {
     getStatus.mockResolvedValueOnce({
-      authEnabled: false,
+      authEnabled: true,
       loggedIn: false,
       passwordSet: false,
       passwordChangeable: false,
@@ -125,7 +125,7 @@ describe('AuthContext', () => {
     );
 
     await screen.findByTestId('status');
-    expect(resetDashboardState).not.toHaveBeenCalled();
+    expect(resetDashboardState).toHaveBeenCalled();
   });
 
   it('treats a 401 logout as already signed out after status refresh', async () => {

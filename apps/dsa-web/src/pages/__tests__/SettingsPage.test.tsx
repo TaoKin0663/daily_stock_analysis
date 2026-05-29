@@ -7,6 +7,7 @@ import SettingsPage from '../SettingsPage';
 const {
   exportDesktopEnv,
   importDesktopEnv,
+  getAgentModels,
   load,
   clearToast,
   setActiveCategory,
@@ -22,6 +23,7 @@ const {
 } = vi.hoisted(() => ({
   exportDesktopEnv: vi.fn(),
   importDesktopEnv: vi.fn(),
+  getAgentModels: vi.fn(),
   load: vi.fn(),
   clearToast: vi.fn(),
   setActiveCategory: vi.fn(),
@@ -53,6 +55,12 @@ vi.mock('../../api/systemConfig', () => ({
   systemConfigApi: {
     exportDesktopEnv: (...args: unknown[]) => exportDesktopEnv(...args),
     importDesktopEnv: (...args: unknown[]) => importDesktopEnv(...args),
+  },
+}));
+
+vi.mock('../../api/agent', () => ({
+  agentApi: {
+    getModels: (...args: unknown[]) => getAgentModels(...args),
   },
 }));
 
@@ -301,9 +309,34 @@ describe('SettingsPage', () => {
       updatedKeys: ['STOCK_LIST'],
       warnings: [],
     });
+    getAgentModels.mockResolvedValue({
+      models: [
+        {
+          deployment_id: 'llm_channels:0',
+          model: 'openai/gpt-4o-mini',
+          provider: 'openai',
+          source: 'llm_channels',
+          api_base: null,
+          deployment_name: 'primary',
+          is_primary: true,
+          is_fallback: false,
+        },
+        {
+          deployment_id: 'llm_channels:1',
+          model: 'deepseek/deepseek-chat',
+          provider: 'deepseek',
+          source: 'llm_channels',
+          api_base: null,
+          deployment_name: 'backup',
+          is_primary: false,
+          is_fallback: true,
+        },
+      ],
+    });
     useAuthMock.mockReturnValue({
       authEnabled: true,
       passwordChangeable: true,
+      currentUser: { isAdmin: true },
       refreshStatus,
     });
     useSystemConfigMock.mockReturnValue(buildSystemConfigState());
@@ -467,6 +500,139 @@ describe('SettingsPage', () => {
     expect(screen.getByText('AGENT_ORCHESTRATOR_TIMEOUT_S')).toBeInTheDocument();
     expect(screen.getByText('AGENT_DEEP_RESEARCH_BUDGET')).toBeInTheDocument();
     expect(screen.getByText('AGENT_EVENT_MONITOR_ENABLED')).toBeInTheDocument();
+  });
+
+  it('renders multi-agent model assignment when AGENT_MODEL_MAP is available', async () => {
+    useSystemConfigMock.mockReturnValue(buildSystemConfigState({
+      activeCategory: 'agent',
+      itemsByCategory: {
+        ...buildSystemConfigState().itemsByCategory,
+        ai_model: [
+          {
+            key: 'LITELLM_MODEL',
+            value: 'openai/gpt-4o-mini',
+            rawValueExists: true,
+            isMasked: false,
+            schema: {
+              key: 'LITELLM_MODEL',
+              category: 'ai_model',
+              dataType: 'string',
+              uiControl: 'text',
+              isSensitive: false,
+              isRequired: false,
+              isEditable: true,
+              options: [],
+              validation: {},
+              displayOrder: 1,
+            },
+          },
+        ],
+        agent: [
+          {
+            key: 'AGENT_ARCH',
+            value: 'multi',
+            rawValueExists: true,
+            isMasked: false,
+            schema: {
+              key: 'AGENT_ARCH',
+              category: 'agent',
+              dataType: 'string',
+              uiControl: 'select',
+              isSensitive: false,
+              isRequired: false,
+              isEditable: true,
+              options: [],
+              validation: {},
+              displayOrder: 1,
+            },
+          },
+          {
+            key: 'AGENT_MODEL_MAP',
+            value: '',
+            rawValueExists: false,
+            isMasked: false,
+            schema: {
+              key: 'AGENT_MODEL_MAP',
+              category: 'agent',
+              dataType: 'json',
+              uiControl: 'custom',
+              isSensitive: false,
+              isRequired: false,
+              isEditable: true,
+              options: [],
+              validation: {},
+              displayOrder: 2,
+            },
+          },
+        ],
+      },
+    }));
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByRole('heading', { name: 'Agent 模型分配' })).toBeInTheDocument();
+    await waitFor(() => expect(getAgentModels).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: /Technical model/ }));
+    fireEvent.click(await screen.findByRole('option', { name: /deepseek\/deepseek-chat/ }));
+
+    expect(setDraftValue).toHaveBeenCalledWith(
+      'AGENT_MODEL_MAP',
+      '{"technical":"deepseek/deepseek-chat"}',
+    );
+    expect(screen.queryByText('AGENT_MODEL_MAP')).not.toBeInTheDocument();
+  });
+
+  it('does not render multi-agent model assignment in single-agent mode', () => {
+    useSystemConfigMock.mockReturnValue(buildSystemConfigState({
+      activeCategory: 'agent',
+      itemsByCategory: {
+        ...buildSystemConfigState().itemsByCategory,
+        agent: [
+          {
+            key: 'AGENT_ARCH',
+            value: 'single',
+            rawValueExists: true,
+            isMasked: false,
+            schema: {
+              key: 'AGENT_ARCH',
+              category: 'agent',
+              dataType: 'string',
+              uiControl: 'select',
+              isSensitive: false,
+              isRequired: false,
+              isEditable: true,
+              options: [],
+              validation: {},
+              displayOrder: 1,
+            },
+          },
+          {
+            key: 'AGENT_MODEL_MAP',
+            value: '',
+            rawValueExists: false,
+            isMasked: false,
+            schema: {
+              key: 'AGENT_MODEL_MAP',
+              category: 'agent',
+              dataType: 'json',
+              uiControl: 'custom',
+              isSensitive: false,
+              isRequired: false,
+              isEditable: true,
+              options: [],
+              validation: {},
+              displayOrder: 2,
+            },
+          },
+        ],
+      },
+    }));
+
+    render(<SettingsPage />);
+
+    expect(screen.queryByRole('heading', { name: 'Agent 模型分配' })).not.toBeInTheDocument();
+    expect(getAgentModels).not.toHaveBeenCalled();
   });
 
   it('reset button semantic: discards local changes without network request', () => {

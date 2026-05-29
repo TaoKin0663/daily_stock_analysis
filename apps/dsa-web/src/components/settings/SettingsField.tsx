@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import type React from 'react';
-import { Badge, Button, Select, Input, Tooltip } from '../common';
+import { Badge, Button, Input, ListBox, Select, Switch, TextArea, Tooltip } from '@heroui/react';
 import type { ConfigValidationIssue, SystemConfigFieldSchema, SystemConfigItem } from '../../types/systemConfig';
 import { getFieldDescriptionZh, getFieldTitleZh } from '../../utils/systemConfigI18n';
 import { cn } from '../../utils/cn';
+import { EyeToggleIcon } from '../common';
 
 function normalizeSelectOptions(options: SystemConfigFieldSchema['options'] = []) {
   return options.map((option) => {
@@ -33,10 +34,6 @@ function serializeMultiValues(values: string[]): string {
   return values.map((entry) => entry.trim()).join(',');
 }
 
-function inferPasswordIconType(key: string): 'password' | 'key' {
-  return key.toUpperCase().includes('PASSWORD') ? 'password' : 'key';
-}
-
 interface SettingsFieldProps {
   item: SystemConfigItem;
   value: string;
@@ -44,6 +41,34 @@ interface SettingsFieldProps {
   onChange: (key: string, value: string) => void;
   issues?: ConfigValidationIssue[];
 }
+
+interface PasswordVisibilityButtonProps {
+  visible: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+}
+
+const PasswordVisibilityButton: React.FC<PasswordVisibilityButtonProps> = ({
+  visible,
+  disabled,
+  onToggle,
+}) => (
+  <button
+    type="button"
+    className={cn(
+      'absolute right-2 top-1/2 z-10 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2',
+      visible
+        ? 'border-warning/40 bg-warning/15 text-warning shadow-[0_0_10px_hsla(var(--warning),0.15)]'
+        : 'border-border/40 bg-muted/20 text-muted-text hover:border-warning/40 hover:text-warning hover:shadow-[0_0_10px_hsla(var(--warning),0.15)] focus:ring-primary/30',
+      disabled ? 'cursor-not-allowed opacity-50' : '',
+    )}
+    onClick={onToggle}
+    disabled={disabled}
+    tabIndex={-1}
+  >
+    <EyeToggleIcon visible={visible} />
+  </button>
+);
 
 function renderFieldControl(
   item: SystemConfigItem,
@@ -53,17 +78,44 @@ function renderFieldControl(
   isPasswordEditable: boolean,
   onPasswordFocus: () => void,
   controlId: string,
+  visiblePasswordInputIds: Set<string>,
+  onTogglePasswordVisibility: (inputId: string) => void,
 ) {
   const schema = item.schema;
-  const commonClass = 'input-surface input-focus-glow h-11 w-full rounded-xl border bg-transparent px-4 text-sm transition-all focus:outline-none disabled:cursor-not-allowed disabled:opacity-60';
   const controlType = schema?.uiControl ?? 'text';
   const isMultiValue = isMultiValueField(item);
 
+  if (controlType === 'switch') {
+    const checked = value.trim().toLowerCase() === 'true';
+
+    return (
+      <Switch
+        id={controlId}
+        isSelected={checked}
+        isDisabled={disabled || !schema?.isEditable}
+        onChange={(isSelected) => onChange(isSelected ? 'true' : 'false')}
+        className="text-sm text-secondary-text"
+        style={{
+          '--switch-control-bg': 'var(--settings-secondary-bg)',
+          '--switch-control-bg-hover': 'var(--settings-secondary-bg-hover)',
+          '--switch-control-bg-pressed': 'var(--settings-secondary-bg-hover)',
+          '--switch-control-bg-checked': 'hsl(var(--primary))',
+          '--switch-control-bg-checked-hover': 'hsl(var(--primary) / 0.86)',
+        } as React.CSSProperties}
+      >
+        <Switch.Control className="ring-1 ring-[var(--settings-border-soft)] transition-shadow data-[disabled=true]:opacity-60">
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
+    );
+  }
+
   if (controlType === 'textarea') {
     return (
-      <textarea
+      <TextArea
         id={controlId}
-        className={`${commonClass} min-h-[92px] resize-y py-3`}
+        className="min-h-[92px] resize-y"
+        fullWidth
         value={value}
         disabled={disabled || !schema?.isEditable}
         onChange={(event) => onChange(event.target.value)}
@@ -72,37 +124,36 @@ function renderFieldControl(
   }
 
   if (controlType === 'select' && schema?.options?.length) {
+    const options = normalizeSelectOptions(schema.options);
+
     return (
         <Select
           id={controlId}
-          value={value}
-          onChange={onChange}
-          options={normalizeSelectOptions(schema.options)}
-          disabled={disabled || !schema.isEditable}
+          selectedKey={value || null}
+          onSelectionChange={(key) => onChange(key === null ? '' : String(key))}
+          isDisabled={disabled || !schema.isEditable}
           placeholder="请选择"
-        />
+          fullWidth
+        >
+          <Select.Trigger id={controlId}>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {options.map((option) => (
+                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
+                  {option.label}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       );
   }
 
-  if (controlType === 'switch') {
-    const checked = value.trim().toLowerCase() === 'true';
-    return (
-      <label className="inline-flex cursor-pointer items-center gap-3">
-        <input
-          id={controlId}
-          type="checkbox"
-          checked={checked}
-          disabled={disabled || !schema?.isEditable}
-          onChange={(event) => onChange(event.target.checked ? 'true' : 'false')}
-        />
-        <span className="text-sm text-secondary-text">{checked ? '已启用' : '未启用'}</span>
-      </label>
-    );
-  }
-
   if (controlType === 'password') {
-    const iconType = inferPasswordIconType(item.key);
-
     if (isMultiValue) {
       const values = parseMultiValues(value);
 
@@ -110,30 +161,44 @@ function renderFieldControl(
         <div className="space-y-2">
           {values.map((entry, index) => (
             <div className="flex items-center gap-2" key={`${item.key}-${index}`}>
-              <div className="flex-1">
-                <Input
-                  type="password"
-                  allowTogglePassword
-                  iconType={iconType}
-                  id={index === 0 ? controlId : `${controlId}-${index}`}
-                  readOnly={!isPasswordEditable}
-                  onFocus={onPasswordFocus}
-                  value={entry}
-                  disabled={disabled || !schema?.isEditable}
-                  onChange={(event) => {
-                    const nextValues = [...values];
-                    nextValues[index] = event.target.value;
-                    onChange(serializeMultiValues(nextValues));
-                  }}
-                />
+              <div className="relative flex-1">
+                {(() => {
+                  const passwordInputId = index === 0 ? controlId : `${controlId}-${index}`;
+                  const isPasswordVisible = visiblePasswordInputIds.has(passwordInputId);
+
+                  return (
+                    <>
+                      <Input
+                        type={isPasswordVisible ? 'text' : 'password'}
+                        id={passwordInputId}
+                        className="pr-12"
+                        fullWidth
+                        readOnly={!isPasswordEditable}
+                        onFocus={onPasswordFocus}
+                        value={entry}
+                        disabled={disabled || !schema?.isEditable}
+                        onChange={(event) => {
+                          const nextValues = [...values];
+                          nextValues[index] = event.target.value;
+                          onChange(serializeMultiValues(nextValues));
+                        }}
+                      />
+                      <PasswordVisibilityButton
+                        visible={isPasswordVisible}
+                        disabled={disabled || !schema?.isEditable}
+                        onToggle={() => onTogglePasswordVisibility(passwordInputId)}
+                      />
+                    </>
+                  );
+                })()}
               </div>
               <Button
                 type="button"
-                variant="settings-secondary"
-                size="lg"
+                variant="secondary"
+                size="sm"
                 className="px-3 text-xs text-muted-text shadow-none hover:text-danger"
-                disabled={disabled || !schema?.isEditable || values.length <= 1}
-                onClick={() => {
+                isDisabled={disabled || !schema?.isEditable || values.length <= 1}
+                onPress={() => {
                   const nextValues = values.filter((_, rowIndex) => rowIndex !== index);
                   onChange(serializeMultiValues(nextValues.length ? nextValues : ['']));
                 }}
@@ -146,11 +211,11 @@ function renderFieldControl(
           <div className="flex items-center gap-2">
             <Button
               type="button"
-              variant="settings-secondary"
+              variant="secondary"
               size="sm"
               className="text-xs shadow-none"
-              disabled={disabled || !schema?.isEditable}
-              onClick={() => onChange(serializeMultiValues([...values, '']))}
+              isDisabled={disabled || !schema?.isEditable}
+              onPress={() => onChange(serializeMultiValues([...values, '']))}
             >
               添加 Key
             </Button>
@@ -159,31 +224,41 @@ function renderFieldControl(
       );
     }
 
+    const isPasswordVisible = visiblePasswordInputIds.has(controlId);
+
     return (
-      <Input
-        type="password"
-        allowTogglePassword
-        iconType={iconType}
-        id={controlId}
-        readOnly={!isPasswordEditable}
-        onFocus={onPasswordFocus}
-        value={value}
-        disabled={disabled || !schema?.isEditable}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      <div className="relative">
+        <Input
+          type={isPasswordVisible ? 'text' : 'password'}
+          id={controlId}
+          className="pr-12"
+          fullWidth
+          readOnly={!isPasswordEditable}
+          onFocus={onPasswordFocus}
+          value={value}
+          disabled={disabled || !schema?.isEditable}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <PasswordVisibilityButton
+          visible={isPasswordVisible}
+          disabled={disabled || !schema?.isEditable}
+          onToggle={() => onTogglePasswordVisibility(controlId)}
+        />
+      </div>
     );
   }
 
   const inputType = controlType === 'number' ? 'number' : controlType === 'time' ? 'time' : 'text';
 
   return (
-    <input
+    <Input
       id={controlId}
       type={inputType}
-      className={commonClass}
+      fullWidth
       value={value}
       disabled={disabled || !schema?.isEditable}
       onChange={(event) => onChange(event.target.value)}
+      className={'bg-[hsl(var(--background))] shadow-[unset]'}
     />
   );
 }
@@ -201,13 +276,25 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
   const description = getFieldDescriptionZh(item.key, schema?.description);
   const hasError = issues.some((issue) => issue.severity === 'error');
   const [isPasswordEditable, setIsPasswordEditable] = useState(false);
+  const [visiblePasswordInputIds, setVisiblePasswordInputIds] = useState<Set<string>>(() => new Set());
   const controlId = `setting-${item.key}`;
+  const togglePasswordVisibility = (inputId: string) => {
+    setVisiblePasswordInputIds((current) => {
+      const next = new Set(current);
+      if (next.has(inputId)) {
+        next.delete(inputId);
+      } else {
+        next.add(inputId);
+      }
+      return next;
+    });
+  };
 
   return (
     <div
       className={cn(
-        'rounded-[1.15rem] border bg-[var(--settings-surface)] p-4 shadow-soft-card transition-[background-color,border-color,box-shadow] duration-200',
-        hasError ? 'border-danger/40 hover:border-danger/55' : 'border-[var(--settings-border)] hover:border-[var(--settings-border-strong)]',
+        'rounded-[1.15rem] bg-[var(--settings-surface)] p-4 transition-[background-color,border-color] duration-200',
+        hasError ? 'border border-danger/40 hover:border-danger/55' : '',
         'hover:bg-[var(--settings-surface-hover)]',
       )}
     >
@@ -216,22 +303,27 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
           {title}
         </label>
         {schema?.isSensitive ? (
-          <Badge variant="history" size="sm">
+          <Badge color="warning" variant="soft" size="sm">
             敏感
           </Badge>
         ) : null}
         {!schema?.isEditable ? (
-          <Badge variant="default" size="sm">
+          <Badge color="default" variant="soft" size="sm">
             只读
           </Badge>
         ) : null}
       </div>
 
       {description ? (
-        <Tooltip content={description}>
-          <p className="mb-3 inline-flex max-w-full text-xs leading-5 text-muted-text">
-            {description}
-          </p>
+        <Tooltip delay={0}>
+          <Tooltip.Trigger className="mb-3 inline-flex max-w-full">
+            <p className="text-xs leading-5 text-muted-text">
+              {description}
+            </p>
+          </Tooltip.Trigger>
+          <Tooltip.Content>
+            <p className="text-xs">{description}</p>
+          </Tooltip.Content>
         </Tooltip>
       ) : null}
 
@@ -244,6 +336,8 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
           isPasswordEditable,
           () => setIsPasswordEditable(true),
           controlId,
+          visiblePasswordInputIds,
+          togglePasswordVisibility,
         )}
       </div>
 

@@ -26,6 +26,7 @@ from src.storage import (
     PortfolioTrade,
     StockDaily,
 )
+from src.user_context import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,25 @@ class PortfolioRepository:
     def __init__(self, db_manager: Optional[DatabaseManager] = None):
         self.db = db_manager or DatabaseManager.get_instance()
 
+    @staticmethod
+    def _owner_user_id() -> int:
+        user_id = get_current_user_id()
+        if user_id is not None:
+            return user_id
+        return DatabaseManager.get_instance()._resolve_owner_id()
+
+    @staticmethod
+    def _owner_account_filter(owner_user_id: Optional[int]):
+        if owner_user_id is None:
+            return PortfolioRepository._owner_user_id()
+        return PortfolioAccount.owner_user_id == owner_user_id
+
+    @staticmethod
+    def _owned_account_ids_query(owner_user_id: Optional[int]):
+        if owner_user_id is None:
+            return None
+        return select(PortfolioAccount.id).where(PortfolioAccount.owner_user_id == owner_user_id)
+
     # ------------------------------------------------------------------
     # Account CRUD
     # ------------------------------------------------------------------
@@ -60,9 +80,11 @@ class PortfolioRepository:
         base_currency: str,
         owner_id: Optional[str] = None,
     ) -> PortfolioAccount:
+        owner_user_id = self._owner_user_id()
         with self.db.get_session() as session:
             row = PortfolioAccount(
                 owner_id=owner_id,
+                owner_user_id=owner_user_id,
                 name=name,
                 broker=broker,
                 market=market,
@@ -83,8 +105,12 @@ class PortfolioRepository:
             )
 
     def list_accounts(self, include_inactive: bool = False) -> List[PortfolioAccount]:
+        owner_user_id = self._owner_user_id()
         with self.db.get_session() as session:
             query = select(PortfolioAccount)
+            owner_filter = self._owner_account_filter(owner_user_id)
+            if owner_filter is not None:
+                query = query.where(owner_filter)
             if not include_inactive:
                 query = query.where(PortfolioAccount.is_active.is_(True))
             rows = session.execute(query.order_by(PortfolioAccount.id.asc())).scalars().all()
@@ -97,7 +123,10 @@ class PortfolioRepository:
         account_id: int,
         include_inactive: bool = False,
     ) -> Optional[PortfolioAccount]:
+        owner_user_id = self._owner_user_id()
         conditions = [PortfolioAccount.id == account_id]
+        if owner_user_id is not None:
+            conditions.append(PortfolioAccount.owner_user_id == owner_user_id)
         if not include_inactive:
             conditions.append(PortfolioAccount.is_active.is_(True))
         return session.execute(
@@ -105,9 +134,13 @@ class PortfolioRepository:
         ).scalar_one_or_none()
 
     def update_account(self, account_id: int, fields: Dict[str, Any]) -> Optional[PortfolioAccount]:
+        owner_user_id = self._owner_user_id()
         with self.db.get_session() as session:
+            conditions = [PortfolioAccount.id == account_id]
+            if owner_user_id is not None:
+                conditions.append(PortfolioAccount.owner_user_id == owner_user_id)
             row = session.execute(
-                select(PortfolioAccount).where(PortfolioAccount.id == account_id).limit(1)
+                select(PortfolioAccount).where(and_(*conditions)).limit(1)
             ).scalar_one_or_none()
             if row is None:
                 return None
@@ -119,9 +152,13 @@ class PortfolioRepository:
             return row
 
     def deactivate_account(self, account_id: int) -> bool:
+        owner_user_id = self._owner_user_id()
         with self.db.get_session() as session:
+            conditions = [PortfolioAccount.id == account_id]
+            if owner_user_id is not None:
+                conditions.append(PortfolioAccount.owner_user_id == owner_user_id)
             row = session.execute(
-                select(PortfolioAccount).where(PortfolioAccount.id == account_id).limit(1)
+                select(PortfolioAccount).where(and_(*conditions)).limit(1)
             ).scalar_one_or_none()
             if row is None:
                 return False
@@ -136,13 +173,14 @@ class PortfolioRepository:
     @contextmanager
     def portfolio_write_session(self):
         session = self.db.get_session()
-        try:
-            session.connection().exec_driver_sql("BEGIN IMMEDIATE")
-        except OperationalError as exc:
-            session.close()
-            if self._is_sqlite_locked_error(exc):
-                raise PortfolioBusyError("Portfolio ledger is busy; please retry shortly.") from exc
-            raise
+        if getattr(self.db, "_is_sqlite_engine", False):
+            try:
+                session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+            except OperationalError as exc:
+                session.close()
+                if self._is_sqlite_locked_error(exc):
+                    raise PortfolioBusyError("Portfolio ledger is busy; please retry shortly.") from exc
+                raise
 
         try:
             yield session
@@ -417,10 +455,17 @@ class PortfolioRepository:
         return row
 
     def delete_trade_in_session(self, *, session: Any, trade_id: int) -> bool:
+        owner_user_id = self._owner_user_id()
         row = session.execute(
             select(PortfolioTrade).where(PortfolioTrade.id == trade_id).limit(1)
         ).scalar_one_or_none()
         if row is None:
+            return False
+        if owner_user_id is not None and not self._account_owned_in_session(
+            session=session,
+            account_id=int(row.account_id),
+            owner_user_id=owner_user_id,
+        ):
             return False
         self._invalidate_account_cache_in_session(
             session=session,
@@ -432,10 +477,17 @@ class PortfolioRepository:
         return True
 
     def delete_cash_ledger_in_session(self, *, session: Any, entry_id: int) -> bool:
+        owner_user_id = self._owner_user_id()
         row = session.execute(
             select(PortfolioCashLedger).where(PortfolioCashLedger.id == entry_id).limit(1)
         ).scalar_one_or_none()
         if row is None:
+            return False
+        if owner_user_id is not None and not self._account_owned_in_session(
+            session=session,
+            account_id=int(row.account_id),
+            owner_user_id=owner_user_id,
+        ):
             return False
         self._invalidate_account_cache_in_session(
             session=session,
@@ -447,10 +499,17 @@ class PortfolioRepository:
         return True
 
     def delete_corporate_action_in_session(self, *, session: Any, action_id: int) -> bool:
+        owner_user_id = self._owner_user_id()
         row = session.execute(
             select(PortfolioCorporateAction).where(PortfolioCorporateAction.id == action_id).limit(1)
         ).scalar_one_or_none()
         if row is None:
+            return False
+        if owner_user_id is not None and not self._account_owned_in_session(
+            session=session,
+            account_id=int(row.account_id),
+            owner_user_id=owner_user_id,
+        ):
             return False
         self._invalidate_account_cache_in_session(
             session=session,
@@ -577,8 +636,12 @@ class PortfolioRepository:
         page: int,
         page_size: int,
     ) -> Tuple[List[PortfolioTrade], int]:
+        owner_user_id = self._owner_user_id()
         with self.db.get_session() as session:
             conditions = []
+            owned_account_ids = self._owned_account_ids_query(owner_user_id)
+            if owned_account_ids is not None:
+                conditions.append(PortfolioTrade.account_id.in_(owned_account_ids))
             if account_id is not None:
                 conditions.append(PortfolioTrade.account_id == account_id)
             if date_from is not None:
@@ -616,8 +679,12 @@ class PortfolioRepository:
         page: int,
         page_size: int,
     ) -> Tuple[List[PortfolioCashLedger], int]:
+        owner_user_id = self._owner_user_id()
         with self.db.get_session() as session:
             conditions = []
+            owned_account_ids = self._owned_account_ids_query(owner_user_id)
+            if owned_account_ids is not None:
+                conditions.append(PortfolioCashLedger.account_id.in_(owned_account_ids))
             if account_id is not None:
                 conditions.append(PortfolioCashLedger.account_id == account_id)
             if date_from is not None:
@@ -654,8 +721,12 @@ class PortfolioRepository:
         page: int,
         page_size: int,
     ) -> Tuple[List[PortfolioCorporateAction], int]:
+        owner_user_id = self._owner_user_id()
         with self.db.get_session() as session:
             conditions = []
+            owned_account_ids = self._owned_account_ids_query(owner_user_id)
+            if owned_account_ids is not None:
+                conditions.append(PortfolioCorporateAction.account_id.in_(owned_account_ids))
             if account_id is not None:
                 conditions.append(PortfolioCorporateAction.account_id == account_id)
             if date_from is not None:
@@ -772,6 +843,7 @@ class PortfolioRepository:
         lookback_days: int = 180,
     ) -> List[PortfolioDailySnapshot]:
         """Load snapshot rows in ascending date order for risk monitoring."""
+        owner_user_id = self._owner_user_id()
         with self.db.get_session() as session:
             query = select(PortfolioDailySnapshot).where(
                 and_(
@@ -779,6 +851,9 @@ class PortfolioRepository:
                     PortfolioDailySnapshot.cost_method == cost_method,
                 )
             )
+            owned_account_ids = self._owned_account_ids_query(owner_user_id)
+            if owned_account_ids is not None:
+                query = query.where(PortfolioDailySnapshot.account_id.in_(owned_account_ids))
             if account_id is not None:
                 query = query.where(PortfolioDailySnapshot.account_id == account_id)
             rows = session.execute(
@@ -873,6 +948,20 @@ class PortfolioRepository:
                 )
             )
         )
+
+    @staticmethod
+    def _account_owned_in_session(*, session: Any, account_id: int, owner_user_id: int) -> bool:
+        row = session.execute(
+            select(PortfolioAccount.id)
+            .where(
+                and_(
+                    PortfolioAccount.id == account_id,
+                    PortfolioAccount.owner_user_id == owner_user_id,
+                )
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+        return row is not None
 
     @staticmethod
     def _is_sqlite_locked_error(exc: OperationalError) -> bool:

@@ -61,7 +61,7 @@ class EmailSender:
             'sender': config.email_sender,
             'sender_name': getattr(config, 'email_sender_name', 'daily_stock_analysis股票分析助手'),
             'password': config.email_password,
-            'receivers': config.email_receivers or ([config.email_sender] if config.email_sender else []),
+            'receivers': config.email_receivers or [],
         }
         self._stock_email_groups = getattr(config, 'stock_email_groups', None) or []
         
@@ -152,8 +152,12 @@ class EmailSender:
         sender = self._email_config['sender']
         password = self._email_config['password']
         receivers = receivers or self._email_config['receivers']
+        if not receivers:
+            logger.warning("未配置收件人，跳过邮件发送")
+            return False
+
         server: Optional[smtplib.SMTP] = None
-        
+
         try:
             # 生成主题
             if subject is None:
@@ -227,6 +231,10 @@ class EmailSender:
         sender = self._email_config['sender']
         password = self._email_config['password']
         receivers = receivers or self._email_config['receivers']
+        if not receivers:
+            logger.warning("未配置收件人，跳过邮件发送")
+            return False
+
         server: Optional[smtplib.SMTP] = None
         try:
             date_str = datetime.now().strftime('%Y-%m-%d')

@@ -1,18 +1,29 @@
 import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { createParsedApiError, getParsedApiError, type ParsedApiError } from '../api/error';
-import { authApi } from '../api/auth';
+import { authApi, type AuthStatusResponse } from '../api/auth';
 import { useStockPoolStore } from '../stores';
+import { useAgentChatStore } from '../stores/agentChatStore';
 
 type AuthContextValue = {
   authEnabled: boolean;
   loggedIn: boolean;
   passwordSet: boolean;
   passwordChangeable: boolean;
-  setupState: 'enabled' | 'password_retained' | 'no_password';
+  setupState: 'enabled' | 'no_password';
+  currentUser: AuthStatusResponse['currentUser'];
   isLoading: boolean;
   loadError: ParsedApiError | null;
-  login: (password: string, passwordConfirm?: string) => Promise<{ success: boolean; error?: ParsedApiError }>;
+  login: (
+    password: string,
+    passwordConfirm?: string,
+    username?: string
+  ) => Promise<{ success: boolean; error?: ParsedApiError }>;
+  register: (
+    username: string,
+    password: string,
+    passwordConfirm: string
+  ) => Promise<{ success: boolean; error?: ParsedApiError }>;
   changePassword: (
     currentPassword: string,
     newPassword: string,
@@ -43,7 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loggedIn, setLoggedIn] = useState(false);
   const [passwordSet, setPasswordSet] = useState(false);
   const [passwordChangeable, setPasswordChangeable] = useState(false);
-  const [setupState, setSetupState] = useState<'enabled' | 'password_retained' | 'no_password'>('no_password');
+  const [setupState, setSetupState] = useState<'enabled' | 'no_password'>('no_password');
+  const [currentUser, setCurrentUser] = useState<AuthStatusResponse['currentUser']>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<ParsedApiError | null>(null);
 
@@ -57,8 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setPasswordSet(status.passwordSet ?? false);
       setPasswordChangeable(status.passwordChangeable ?? false);
       setSetupState(status.setupState);
+      setCurrentUser(status.currentUser ?? null);
       if (status.authEnabled && !status.loggedIn) {
         useStockPoolStore.getState().resetDashboardState();
+        useAgentChatStore.getState().resetState();
       }
     } catch (err) {
       setLoadError(getParsedApiError(err));
@@ -67,7 +81,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setPasswordSet(false);
       setPasswordChangeable(false);
       setSetupState('no_password');
+      setCurrentUser(null);
       useStockPoolStore.getState().resetDashboardState();
+      useAgentChatStore.getState().resetState();
     } finally {
       setIsLoading(false);
     }
@@ -80,14 +96,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(
     async (
       password: string,
-      passwordConfirm?: string
+      passwordConfirm?: string,
+      username?: string
     ): Promise<{ success: boolean; error?: ParsedApiError }> => {
       try {
-        await authApi.login(password, passwordConfirm);
+        await authApi.login(password, passwordConfirm, username);
         await fetchStatus();
         return { success: true };
       } catch (err: unknown) {
         return { success: false, error: extractLoginError(err) };
+      }
+    },
+    [fetchStatus]
+  );
+
+  const register = useCallback(
+    async (
+      username: string,
+      password: string,
+      passwordConfirm: string
+    ): Promise<{ success: boolean; error?: ParsedApiError }> => {
+      try {
+        await authApi.register(username, password, passwordConfirm);
+        await fetchStatus();
+        return { success: true };
+      } catch (err: unknown) {
+        return { success: false, error: getParsedApiError(err) };
       }
     },
     [fetchStatus]
@@ -132,9 +166,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         passwordSet,
         passwordChangeable,
         setupState,
+        currentUser,
         isLoading,
         loadError,
         login,
+        register,
         changePassword,
         logout,
         refreshStatus: fetchStatus,

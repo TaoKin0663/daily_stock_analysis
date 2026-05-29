@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Integration tests for auth API endpoints (login, logout, change-password, API protection)."""
 
 import asyncio
 import os
 import sys
 import tempfile
+import uuid
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -24,6 +25,8 @@ import src.auth as auth
 from api.middlewares.auth import AuthMiddleware
 from api.v1.endpoints import auth as auth_endpoint
 from src.config import Config
+from src.auth import ADMIN_COOKIE_NAME, WEB_COOKIE_NAME
+from src.storage import DatabaseManager
 
 
 def _reset_auth_globals() -> None:
@@ -49,6 +52,7 @@ class AuthApiTestCase(unittest.TestCase):
         os.environ["ENV_FILE"] = str(self.env_path)
         os.environ["DATABASE_PATH"] = str(self.data_dir / "test.db")
         Config.reset_instance()
+        DatabaseManager.reset_instance()
 
         self.auth_patcher = patch.object(auth, "_is_auth_enabled_from_env", return_value=True)
         self.data_dir_patcher = patch.object(auth, "_get_data_dir", return_value=self.data_dir)
@@ -59,6 +63,7 @@ class AuthApiTestCase(unittest.TestCase):
         self.auth_patcher.stop()
         self.data_dir_patcher.stop()
         Config.reset_instance()
+        DatabaseManager.reset_instance()
         os.environ.pop("ENV_FILE", None)
         os.environ.pop("DATABASE_PATH", None)
         self.temp_dir.cleanup()
@@ -68,13 +73,17 @@ class AuthApiTestCase(unittest.TestCase):
         return (values.get("ADMIN_AUTH_ENABLED") or "").strip().lower() in ("true", "1", "yes")
 
     @staticmethod
-    def _build_request(cookies=None):
+    def _build_request(cookies=None, headers=None):
         return SimpleNamespace(
-            headers={},
+            headers=headers or {},
             url=SimpleNamespace(scheme="http"),
             cookies=cookies or {},
             client=SimpleNamespace(host="127.0.0.1"),
         )
+
+    @staticmethod
+    def _extract_cookie_value(response, cookie_name: str) -> str:
+        return response.headers["set-cookie"].split(f"{cookie_name}=", 1)[1].split(";", 1)[0]
 
     def test_auth_status_when_password_not_set(self) -> None:
         data = asyncio.run(auth_endpoint.auth_status(self._build_request()))
@@ -85,18 +94,29 @@ class AuthApiTestCase(unittest.TestCase):
     def test_login_first_time_set_initial_password(self) -> None:
         response = asyncio.run(
             auth_endpoint.auth_login(
-                self._build_request(),
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
                 auth_endpoint.LoginRequest(password="newpass123", passwordConfirm="newpass123"),
             )
         )
         self.assertEqual(response.status_code, 200)
-        self.assertIn("dsa_session=", response.headers["set-cookie"])
+        self.assertIn(f"{ADMIN_COOKIE_NAME}=", response.headers["set-cookie"])
         self.assertIn(b'"ok":true', response.body)
+
+    def test_admin_login_sets_admin_cookie(self) -> None:
+        response = asyncio.run(
+            auth_endpoint.auth_login(
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
+                auth_endpoint.LoginRequest(password="newpass123", passwordConfirm="newpass123"),
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(f"{ADMIN_COOKIE_NAME}=", response.headers["set-cookie"])
 
     def test_login_first_time_mismatch_rejected(self) -> None:
         response = asyncio.run(
             auth_endpoint.auth_login(
-                self._build_request(),
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
                 auth_endpoint.LoginRequest(password="pass1", passwordConfirm="pass2"),
             )
         )
@@ -106,7 +126,7 @@ class AuthApiTestCase(unittest.TestCase):
     def test_login_after_set_normal_login(self) -> None:
         first_response = asyncio.run(
             auth_endpoint.auth_login(
-                self._build_request(),
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
                 auth_endpoint.LoginRequest(password="mypass456", passwordConfirm="mypass456"),
             )
         )
@@ -114,7 +134,7 @@ class AuthApiTestCase(unittest.TestCase):
 
         response = asyncio.run(
             auth_endpoint.auth_login(
-                self._build_request(),
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
                 auth_endpoint.LoginRequest(password="mypass456"),
             )
         )
@@ -124,7 +144,7 @@ class AuthApiTestCase(unittest.TestCase):
     def test_login_wrong_password_returns_401(self) -> None:
         first_response = asyncio.run(
             auth_endpoint.auth_login(
-                self._build_request(),
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
                 auth_endpoint.LoginRequest(password="correct", passwordConfirm="correct"),
             )
         )
@@ -132,45 +152,105 @@ class AuthApiTestCase(unittest.TestCase):
 
         response = asyncio.run(
             auth_endpoint.auth_login(
-                self._build_request(),
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
                 auth_endpoint.LoginRequest(password="wrong"),
             )
         )
         self.assertEqual(response.status_code, 401)
 
+    def test_admin_client_rejects_registered_web_user(self) -> None:
+        username = f"web{uuid.uuid4().hex[:10]}"
+        register_response = asyncio.run(
+            auth_endpoint.auth_register(
+                self._build_request(),
+                auth_endpoint.RegisterRequest(username=username, password="passwd6", passwordConfirm="passwd6"),
+            )
+        )
+        self.assertEqual(register_response.status_code, 200, register_response.body)
+
+        response = asyncio.run(
+            auth_endpoint.auth_login(
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
+                auth_endpoint.LoginRequest(username=username, password="passwd6"),
+            )
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertIn(b'"error":"invalid_credentials"', response.body)
+
+    def test_web_client_rejects_admin_login(self) -> None:
+        first_response = asyncio.run(
+            auth_endpoint.auth_login(
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
+                auth_endpoint.LoginRequest(password="adminpass", passwordConfirm="adminpass"),
+            )
+        )
+        self.assertEqual(first_response.status_code, 200)
+
+        response = asyncio.run(
+            auth_endpoint.auth_login(
+                self._build_request(),
+                auth_endpoint.LoginRequest(username="admin", password="adminpass"),
+            )
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertIn(b'"error":"invalid_credentials"', response.body)
+
+    def test_admin_client_cannot_register_accounts(self) -> None:
+        response = asyncio.run(
+            auth_endpoint.auth_register(
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
+                auth_endpoint.RegisterRequest(username="staff", password="passwd6", passwordConfirm="passwd6"),
+            )
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b'"error":"admin_registration_disabled"', response.body)
+
+    def test_web_registration_rejects_reserved_admin_username(self) -> None:
+        response = asyncio.run(
+            auth_endpoint.auth_register(
+                self._build_request(),
+                auth_endpoint.RegisterRequest(username="admin", password="passwd6", passwordConfirm="passwd6"),
+            )
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b'"error":"invalid_registration"', response.body)
+
     def test_logout_clears_cookie(self) -> None:
         response = asyncio.run(auth_endpoint.auth_logout(self._build_request()))
         self.assertEqual(response.status_code, 204)
-        self.assertIn("dsa_session=", response.headers["set-cookie"])
+        self.assertIn(f"{WEB_COOKIE_NAME}=", response.headers["set-cookie"])
 
-    def test_logout_invalidates_existing_session(self) -> None:
-        login_response = asyncio.run(
-            auth_endpoint.auth_login(
+    def test_web_logout_does_not_invalidate_admin_session(self) -> None:
+        username = f"web{uuid.uuid4().hex[:10]}"
+        web_login_response = asyncio.run(
+            auth_endpoint.auth_register(
                 self._build_request(),
+                auth_endpoint.RegisterRequest(username=username, password="webpass6", passwordConfirm="webpass6"),
+            )
+        )
+        self.assertEqual(web_login_response.status_code, 200)
+        admin_login_response = asyncio.run(
+            auth_endpoint.auth_login(
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
                 auth_endpoint.LoginRequest(password="passwd6", passwordConfirm="passwd6"),
             )
         )
-        self.assertEqual(login_response.status_code, 200)
-        cookie_header = login_response.headers["set-cookie"]
-        session_cookie = cookie_header.split("dsa_session=", 1)[1].split(";", 1)[0]
-        self.assertTrue(auth.verify_session(session_cookie))
+        self.assertEqual(admin_login_response.status_code, 200)
+        admin_cookie = self._extract_cookie_value(admin_login_response, ADMIN_COOKIE_NAME)
 
         logout_response = asyncio.run(auth_endpoint.auth_logout(self._build_request()))
 
         self.assertEqual(logout_response.status_code, 204)
-        self.assertFalse(auth.verify_session(session_cookie))
-
-    def test_logout_returns_500_when_session_invalidation_fails(self) -> None:
-        with patch.object(auth_endpoint, "rotate_session_secret", return_value=False):
-            response = asyncio.run(auth_endpoint.auth_logout(self._build_request()))
-
-        self.assertEqual(response.status_code, 500)
-        self.assertIn(b'"error":"internal_error"', response.body)
+        self.assertTrue(auth.verify_session(admin_cookie))
 
     def test_change_password_requires_session(self) -> None:
         first_response = asyncio.run(
             auth_endpoint.auth_login(
-                self._build_request(),
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
                 auth_endpoint.LoginRequest(password="oldpass6", passwordConfirm="oldpass6"),
             )
         )
@@ -190,7 +270,7 @@ class AuthApiTestCase(unittest.TestCase):
     def test_change_password_wrong_current_rejected(self) -> None:
         first_response = asyncio.run(
             auth_endpoint.auth_login(
-                self._build_request(),
+                self._build_request(headers={"x-dsa-auth-client": "admin"}),
                 auth_endpoint.LoginRequest(password="actual6", passwordConfirm="actual6"),
             )
         )
@@ -222,7 +302,7 @@ class AuthApiTestCase(unittest.TestCase):
         request = Request(scope)
         middleware = AuthMiddleware(app=MagicMock())
 
-        with patch("api.middlewares.auth.is_auth_enabled", return_value=True):
+        if True:
             response = asyncio.run(middleware.dispatch(request, AsyncMock(return_value=Response(status_code=200))))
 
         self.assertEqual(response.status_code, 401)
@@ -243,18 +323,54 @@ class AuthApiTestCase(unittest.TestCase):
         middleware = AuthMiddleware(app=MagicMock())
         call_next = AsyncMock(return_value=Response(status_code=204))
 
-        with patch("api.middlewares.auth.is_auth_enabled", return_value=True):
+        if True:
             response = asyncio.run(middleware.dispatch(request, call_next))
 
         self.assertEqual(response.status_code, 401)
         call_next.assert_not_awaited()
+
+    def test_admin_logout_accepts_admin_session_cookie(self) -> None:
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/auth/logout",
+            "headers": [
+                (b"x-dsa-auth-client", b"admin"),
+                (b"cookie", f"{ADMIN_COOKIE_NAME}=admin-session".encode("utf-8")),
+            ],
+            "query_string": b"",
+            "scheme": "http",
+            "client": ("127.0.0.1", 1234),
+            "server": ("testserver", 80),
+            "root_path": "",
+        }
+        request = Request(scope)
+        middleware = AuthMiddleware(app=MagicMock())
+        call_next = AsyncMock(return_value=Response(status_code=204))
+        user = {
+            "id": 1,
+            "username": "admin",
+            "isAdmin": True,
+            "roleKey": "super_admin",
+            "roleName": "超级管理员",
+            "menuPermissions": [],
+            "settingPermissions": [],
+        }
+
+        if True:
+            with patch("api.middlewares.auth.get_session_user", return_value=user):
+                with patch("api.middlewares.auth.verify_session", return_value=True):
+                    response = asyncio.run(middleware.dispatch(request, call_next))
+
+        self.assertEqual(response.status_code, 204)
+        call_next.assert_awaited_once()
 
     def test_protected_api_accessible_with_session(self) -> None:
         scope = {
             "type": "http",
             "method": "GET",
             "path": "/api/v1/system/config",
-            "headers": [(b"cookie", b"dsa_session=test-session")],
+            "headers": [(b"cookie", f"{WEB_COOKIE_NAME}=test-session".encode("utf-8"))],
             "query_string": b"",
             "scheme": "http",
             "client": ("127.0.0.1", 1234),
@@ -266,9 +382,57 @@ class AuthApiTestCase(unittest.TestCase):
         next_response = Response(status_code=200)
         call_next = AsyncMock(return_value=next_response)
 
-        with patch("api.middlewares.auth.is_auth_enabled", return_value=True):
-            with patch("api.middlewares.auth.verify_session", return_value=True):
-                response = asyncio.run(middleware.dispatch(request, call_next))
+        if True:
+            with patch("api.middlewares.auth.get_session_user", return_value={
+                "id": 1,
+                "username": "admin",
+                "isAdmin": True,
+                "roleKey": "super_admin",
+                "roleName": "超级管理员",
+                "menuPermissions": [],
+                "settingPermissions": [],
+            }):
+                with patch("api.middlewares.auth.verify_session", return_value=True):
+                    response = asyncio.run(middleware.dispatch(request, call_next))
+
+        self.assertEqual(response.status_code, 200)
+        call_next.assert_awaited_once()
+
+    def test_admin_api_uses_admin_session_cookie(self) -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/v1/admin/users",
+            "headers": [
+                (
+                    b"cookie",
+                    f"{WEB_COOKIE_NAME}=web-session; {ADMIN_COOKIE_NAME}=admin-session".encode("utf-8"),
+                )
+            ],
+            "query_string": b"",
+            "scheme": "http",
+            "client": ("127.0.0.1", 1234),
+            "server": ("testserver", 80),
+            "root_path": "",
+        }
+        request = Request(scope)
+        middleware = AuthMiddleware(app=MagicMock())
+        next_response = Response(status_code=200)
+        call_next = AsyncMock(return_value=next_response)
+
+        user = {
+            "id": 1,
+            "username": "admin",
+            "isAdmin": True,
+            "roleKey": "super_admin",
+            "roleName": "超级管理员",
+            "menuPermissions": [],
+            "settingPermissions": [],
+        }
+        if True:
+            with patch("api.middlewares.auth.get_session_user", side_effect=lambda value: user if value == "admin-session" else None):
+                with patch("api.middlewares.auth.verify_session", side_effect=lambda value: value == "admin-session"):
+                    response = asyncio.run(middleware.dispatch(request, call_next))
 
         self.assertEqual(response.status_code, 200)
         call_next.assert_awaited_once()
@@ -288,33 +452,10 @@ class AuthApiTestCase(unittest.TestCase):
         request = Request(scope)
         middleware = AuthMiddleware(app=MagicMock())
 
-        with patch("api.middlewares.auth.is_auth_enabled", return_value=True):
+        if True:
             response = asyncio.run(middleware.dispatch(request, AsyncMock(return_value=Response(status_code=200))))
 
         self.assertEqual(response.status_code, 401)
-
-    def test_auth_settings_is_reachable_when_auth_disabled(self) -> None:
-        scope = {
-            "type": "http",
-            "method": "POST",
-            "path": "/api/v1/auth/settings",
-            "headers": [],
-            "query_string": b"",
-            "scheme": "http",
-            "client": ("127.0.0.1", 1234),
-            "server": ("testserver", 80),
-            "root_path": "",
-        }
-        request = Request(scope)
-        middleware = AuthMiddleware(app=MagicMock())
-        next_response = Response(status_code=200)
-        call_next = AsyncMock(return_value=next_response)
-
-        with patch("api.middlewares.auth.is_auth_enabled", return_value=False):
-            response = asyncio.run(middleware.dispatch(request, call_next))
-
-        self.assertEqual(response.status_code, 200)
-        call_next.assert_awaited_once()
 
     def test_auth_settings_enable_sets_initial_password_and_logs_in(self) -> None:
         self.env_path.write_text(
@@ -339,7 +480,7 @@ class AuthApiTestCase(unittest.TestCase):
         self.assertIn(b'"authEnabled":true', response.body)
         self.assertIn(b'"loggedIn":true', response.body)
         self.assertIn(b'"passwordSet":true', response.body)
-        self.assertIn("dsa_session=", response.headers["set-cookie"])
+        self.assertIn(f"{WEB_COOKIE_NAME}=", response.headers["set-cookie"])
         self.assertIn("ADMIN_AUTH_ENABLED=true", self.env_path.read_text(encoding="utf-8"))
 
     def test_auth_settings_enable_requires_password_when_missing(self) -> None:
@@ -390,176 +531,18 @@ class AuthApiTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn(b'"error":"password_already_set"', response.body)
 
-    def test_auth_settings_disable_clears_cookie_and_hides_password_state(self) -> None:
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.set_initial_password("passwd6")
-            response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=False, currentPassword="passwd6"),
-                )
+    def test_auth_settings_rejects_disabling_auth(self) -> None:
+        auth.set_initial_password("passwd6")
+        response = asyncio.run(
+            auth_endpoint.auth_update_settings(
+                self._build_request(),
+                auth_endpoint.AuthSettingsRequest(authEnabled=False, currentPassword="passwd6"),
             )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b'"authEnabled":false', response.body)
-        self.assertIn(b'"loggedIn":false', response.body)
-        self.assertIn(b'"passwordSet":false', response.body)
-        self.assertIn("ADMIN_AUTH_ENABLED=false", self.env_path.read_text(encoding="utf-8"))
-        self.assertIn("dsa_session=", response.headers["set-cookie"])
-
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            status_response = asyncio.run(auth_endpoint.auth_status(self._build_request()))
-        self.assertFalse(status_response["authEnabled"])
-        self.assertFalse(status_response["passwordSet"])
-
-    def test_auth_settings_disable_requires_current_password_when_auth_enabled(self) -> None:
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.set_initial_password("passwd6")
-            response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=False),
-                )
-            )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b'"error":"current_required"', response.body)
-        self.assertIn("ADMIN_AUTH_ENABLED=true", self.env_path.read_text(encoding="utf-8"))
-
-    def test_auth_settings_toggle_fails_when_secret_rotation_fails(self) -> None:
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.set_initial_password("passwd6")
-            with patch.object(auth_endpoint, "rotate_session_secret", return_value=False):
-                response = asyncio.run(
-                    auth_endpoint.auth_update_settings(
-                        self._build_request(),
-                        auth_endpoint.AuthSettingsRequest(authEnabled=False, currentPassword="passwd6"),
-                    )
-                )
-
-        self.assertEqual(response.status_code, 500)
-        self.assertIn(b'"error":"internal_error"', response.body)
-        self.assertIn("ADMIN_AUTH_ENABLED=true", self.env_path.read_text(encoding="utf-8"))
-
-    def test_auth_settings_enable_with_existing_password_reuses_stored_password(self) -> None:
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.set_initial_password("passwd6")
-            disable_response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=False, currentPassword="passwd6"),
-                )
-            )
-        self.assertEqual(disable_response.status_code, 200)
-
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            enable_response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=True, currentPassword="passwd6"),
-                )
-            )
-
-        self.assertEqual(enable_response.status_code, 200)
-        self.assertIn(b'"authEnabled":true', enable_response.body)
-        self.assertIn(b'"passwordSet":true', enable_response.body)
-        self.assertIn(b'"loggedIn":true', enable_response.body)
-        self.assertIn("dsa_session=", enable_response.headers["set-cookie"])
-
-    def test_auth_settings_enable_with_existing_password_requires_current_password(self) -> None:
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.set_initial_password("passwd6")
-            disable_response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=False, currentPassword="passwd6"),
-                )
-            )
-        self.assertEqual(disable_response.status_code, 200)
-
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=True),
-                )
-            )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b'"error":"current_required"', response.body)
-        self.assertIn("ADMIN_AUTH_ENABLED=false", self.env_path.read_text(encoding="utf-8"))
-
-    def test_auth_settings_enable_with_existing_password_rejects_wrong_current_password(self) -> None:
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.set_initial_password("passwd6")
-            disable_response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=False, currentPassword="passwd6"),
-                )
-            )
-        self.assertEqual(disable_response.status_code, 200)
-
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=True, currentPassword="wrongpass"),
-                )
-            )
-
-        self.assertEqual(response.status_code, 401)
-        self.assertIn(b'"error":"invalid_password"', response.body)
-        self.assertIn("ADMIN_AUTH_ENABLED=false", self.env_path.read_text(encoding="utf-8"))
-
-    def test_auth_settings_enable_rolls_back_when_session_creation_fails(self) -> None:
-        self.env_path.write_text(
-            "STOCK_LIST=600519\nGEMINI_API_KEY=test\nADMIN_AUTH_ENABLED=false\n",
-            encoding="utf-8",
         )
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.refresh_auth_state()
-            with patch.object(auth_endpoint, "create_session", return_value=""):
-                response = asyncio.run(
-                    auth_endpoint.auth_update_settings(
-                        self._build_request(),
-                        auth_endpoint.AuthSettingsRequest(
-                            authEnabled=True,
-                            password="initpass123",
-                            passwordConfirm="initpass123",
-                        ),
-                    )
-                )
-
-        self.assertEqual(response.status_code, 500)
-        self.assertIn(b'"error":"internal_error"', response.body)
-        self.assertIn("ADMIN_AUTH_ENABLED=false", self.env_path.read_text(encoding="utf-8"))
-
-    def test_auth_settings_rejects_overwriting_existing_password(self) -> None:
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.set_initial_password("passwd6")
-            disable_response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=False, currentPassword="passwd6"),
-                )
-            )
-            self.assertEqual(disable_response.status_code, 200)
-
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(
-                        authEnabled=True,
-                        password="newpass123",
-                        passwordConfirm="newpass123",
-                    ),
-                )
-            )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn(b'"error":"password_already_set"', response.body)
+        self.assertIn(b'"error":"auth_always_required"', response.body)
+        self.assertIn("ADMIN_AUTH_ENABLED=true", self.env_path.read_text(encoding="utf-8"))
 
     def test_auth_settings_enable_requires_valid_session_cookie_against_toctou(self) -> None:
         """Verify fix for P1 vulnerability: passing authEnabled=True without currentPassword
@@ -586,7 +569,7 @@ class AuthApiTestCase(unittest.TestCase):
             # 3. The attacker tries to re-enable auth without a password or valid cookie
             response = asyncio.run(
                 auth_endpoint.auth_update_settings(
-                    self._build_request(cookies={"dsa_session": "invalid"}),
+                    self._build_request(cookies={WEB_COOKIE_NAME: "invalid"}),
                     auth_endpoint.AuthSettingsRequest(authEnabled=True),
                 )
             )
@@ -598,3 +581,4 @@ class AuthApiTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

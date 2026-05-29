@@ -35,6 +35,7 @@ from sqlalchemy import (
     Index,
     UniqueConstraint,
     Text,
+    LargeBinary,
     select,
     and_,
     or_,
@@ -43,6 +44,7 @@ from sqlalchemy import (
     event,
     func,
 )
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import (
     declarative_base,
@@ -52,6 +54,16 @@ from sqlalchemy.orm import (
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from src.config import get_config
+from src.permissions import (
+    ADMIN_MENU_KEYS,
+    ADMIN_SETTING_KEYS,
+    DEFAULT_USER_MENU_KEYS,
+    DEFAULT_USER_SETTING_KEYS,
+    DEFAULT_USER_ROLE_KEY,
+    SUPER_ADMIN_ROLE_KEY,
+    normalize_menu_keys,
+    normalize_setting_keys,
+)
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -64,6 +76,118 @@ if TYPE_CHECKING:
 
 
 # === 数据模型定义 ===
+
+class Role(Base):
+    """Application role for menu permissions."""
+
+    __tablename__ = 'roles'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(64), nullable=False, unique=True, index=True)
+    name = Column(String(64), nullable=False)
+    description = Column(Text, nullable=False, default="")
+    is_system = Column(Boolean, nullable=False, default=False, index=True)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class RoleMenuPermission(Base):
+    """Menu permission assigned to a role."""
+
+    __tablename__ = 'role_menu_permissions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    role_id = Column(Integer, ForeignKey('roles.id'), nullable=False, index=True)
+    menu_key = Column(String(64), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    __table_args__ = (
+        UniqueConstraint('role_id', 'menu_key', name='uix_role_menu_permission'),
+    )
+
+
+class RoleSettingPermission(Base):
+    """System setting permission assigned to a role."""
+
+    __tablename__ = 'role_setting_permissions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    role_id = Column(Integer, ForeignKey('roles.id'), nullable=False, index=True)
+    setting_key = Column(String(128), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    __table_args__ = (
+        UniqueConstraint('role_id', 'setting_key', name='uix_role_setting_permission'),
+    )
+
+
+class User(Base):
+    """Application user account."""
+
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(64), nullable=False, unique=True, index=True)
+    password_salt = Column(LargeBinary, nullable=False)
+    password_hash = Column(LargeBinary, nullable=False)
+    is_admin = Column(Boolean, nullable=False, default=False, index=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class AdminUser(Base):
+    """Admin console account, isolated from open registration users."""
+
+    __tablename__ = 'admin_users'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(64), nullable=False, unique=True, index=True)
+    password_salt = Column(LargeBinary, nullable=False)
+    password_hash = Column(LargeBinary, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class UserRole(Base):
+    """Single role assignment for a user."""
+
+    __tablename__ = 'user_roles'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, unique=True, index=True)
+    role_id = Column(Integer, ForeignKey('roles.id'), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class UserConfig(Base):
+    """Per-user configuration override."""
+
+    __tablename__ = 'user_configs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    key = Column(String(128), nullable=False, index=True)
+    value = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'key', name='uix_user_config_user_key'),
+    )
+
+
+class SystemConfig(Base):
+    """全局系统配置（替代 .env 写入，DB 为权威数据源）。"""
+
+    __tablename__ = 'system_configs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(128), nullable=False, unique=True, index=True)
+    value = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
 
 class StockDaily(Base):
     """
@@ -145,6 +269,7 @@ class NewsIntel(Base):
     __tablename__ = 'news_intel'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
 
     # 关联用户查询操作
     query_id = Column(String(64), index=True)
@@ -176,7 +301,7 @@ class NewsIntel(Base):
     requester_query = Column(String(255))
 
     __table_args__ = (
-        UniqueConstraint('url', name='uix_news_url'),
+        UniqueConstraint('owner_user_id', 'url', name='uix_news_owner_url'),
         Index('ix_news_code_pub', 'code', 'published_date'),
     )
 
@@ -193,6 +318,7 @@ class FundamentalSnapshot(Base):
     __tablename__ = 'fundamental_snapshot'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     query_id = Column(String(64), nullable=False, index=True)
     code = Column(String(10), nullable=False, index=True)
     payload = Column(Text, nullable=False)
@@ -218,6 +344,7 @@ class AnalysisHistory(Base):
     __tablename__ = 'analysis_history'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
 
     # 关联查询链路
     query_id = Column(String(64), index=True)
@@ -287,6 +414,8 @@ class BacktestResult(Base):
         index=True,
     )
 
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+
     # 冗余字段，便于按股票筛选
     code = Column(String(10), nullable=False, index=True)
     analysis_date = Column(Date, index=True)
@@ -353,6 +482,7 @@ class BacktestSummary(Base):
 
     eval_window_days = Column(Integer, nullable=False, default=10)
     engine_version = Column(String(16), nullable=False, default='v1')
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     computed_at = Column(DateTime, default=datetime.now, index=True)
 
     # 计数
@@ -403,6 +533,7 @@ class PortfolioAccount(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     owner_id = Column(String(64), index=True)
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     name = Column(String(64), nullable=False)
     broker = Column(String(64))
     market = Column(String(8), nullable=False, default='cn', index=True)  # cn/hk/us
@@ -602,6 +733,7 @@ class ConversationMessage(Base):
     __tablename__ = 'conversation_messages'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     session_id = Column(String(100), index=True, nullable=False)
     role = Column(String(20), nullable=False)  # user, assistant, system
     content = Column(Text, nullable=False)
@@ -614,6 +746,7 @@ class LLMUsage(Base):
     __tablename__ = 'llm_usage'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     # 'analysis' | 'agent' | 'market_review'
     call_type = Column(String(32), nullable=False, index=True)
     model = Column(String(128), nullable=False)
@@ -622,6 +755,85 @@ class LLMUsage(Base):
     completion_tokens = Column(Integer, nullable=False, default=0)
     total_tokens = Column(Integer, nullable=False, default=0)
     called_at = Column(DateTime, default=datetime.now, index=True)
+
+
+# ------------------------------------------------------------------
+# Token Payment Models
+# ------------------------------------------------------------------
+
+class CreditTransaction(Base):
+    """One row per manual credit top-up."""
+
+    __tablename__ = 'credit_transactions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    credit_amount = Column(Integer, nullable=False)
+    operator_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    reason = Column(String(256), nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    __table_args__ = (
+        Index('ix_credit_tx_user', 'user_id', 'created_at'),
+    )
+
+
+class OnchainDeposit(Base):
+    """One row per on-chain deposit transaction."""
+
+    __tablename__ = 'onchain_deposits'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    wallet_address = Column(String(64), nullable=False, index=True)
+    tx_hash = Column(String(80), nullable=False, unique=True, index=True)
+    chain_id = Column(Integer, nullable=False, default=11155111)
+    token_address = Column(String(64), nullable=False)
+    receiver_address = Column(String(64), nullable=False)
+    token_amount_raw = Column(String(96), nullable=True)
+    credit_amount = Column(Integer, nullable=True)
+    credit_transaction_id = Column(Integer, ForeignKey('credit_transactions.id'), nullable=True)
+    status = Column(String(24), nullable=False, default='pending', index=True)
+    error = Column(String(256), nullable=True)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+    confirmed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index('ix_onchain_deposits_user_created', 'user_id', 'created_at'),
+    )
+
+
+class CreditDeduction(Base):
+    """One row per credit deduction — audit log for spent credits."""
+
+    __tablename__ = 'credit_deductions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    llm_usage_id = Column(Integer, ForeignKey('llm_usage.id'), nullable=True)
+    call_type = Column(String(32), nullable=False, index=True)
+    model = Column(String(128), nullable=False)
+    total_tokens = Column(Integer, nullable=False)
+    credits_spent = Column(Integer, nullable=False)
+    balance_after = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    __table_args__ = (
+        Index('ix_credit_deductions_user', 'user_id', 'created_at'),
+    )
+
+
+class UserCreditBalance(Base):
+    """Current credit balance per user — materialized from transactions."""
+
+    __tablename__ = 'user_credit_balances'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, unique=True, index=True)
+    balance = Column(Integer, nullable=False, default=0)
+    lifetime_credits = Column(Integer, nullable=False, default=0)
+    version = Column(Integer, nullable=False, default=1)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
 class DatabaseManager:
@@ -678,7 +890,9 @@ class DatabaseManager:
             db_url,
             **engine_kwargs,
         )
-        self._is_sqlite_engine = self._engine.url.get_backend_name() == 'sqlite'
+        backend_name = self._engine.url.get_backend_name()
+        self._is_sqlite_engine = backend_name == 'sqlite'
+        self._is_postgresql_engine = backend_name == 'postgresql'
         self._sqlite_file_db = self._is_sqlite_engine and self._is_file_sqlite_database()
         self._install_sqlite_pragma_handler()
         
@@ -691,6 +905,10 @@ class DatabaseManager:
         
         # 创建所有表
         Base.metadata.create_all(self._engine)
+        self._run_lightweight_migrations()
+        self.ensure_default_roles()
+        self.ensure_default_admin_user()
+        self.ensure_default_admin_account()
 
         self._initialized = True
         logger.info(f"数据库初始化完成: {db_url}")
@@ -701,8 +919,8 @@ class DatabaseManager:
     @classmethod
     def get_instance(cls) -> 'DatabaseManager':
         """获取单例实例"""
-        if cls._instance is None:
-            cls._instance = cls()
+        if cls._instance is None or not getattr(cls._instance, '_initialized', False):
+            cls()
         return cls._instance
     
     @classmethod
@@ -751,6 +969,489 @@ class DatabaseManager:
     def _is_file_sqlite_database(self) -> bool:
         database = (self._engine.url.database or "").strip()
         return bool(database) and database.lower() != ":memory:"
+
+    def _run_lightweight_migrations(self) -> None:
+        """Apply idempotent SQLite column additions for older local databases."""
+        if not self._is_sqlite_engine:
+            return
+        additions = {
+            "users": [
+                ("password_salt", "BLOB"),
+                ("password_hash", "BLOB"),
+                ("is_admin", "INTEGER"),
+                ("is_active", "INTEGER"),
+                ("created_at", "DATETIME"),
+                ("updated_at", "DATETIME"),
+            ],
+            "news_intel": [("owner_user_id", "INTEGER")],
+            "fundamental_snapshot": [("owner_user_id", "INTEGER")],
+            "analysis_history": [("owner_user_id", "INTEGER")],
+            "portfolio_accounts": [("owner_user_id", "INTEGER")],
+            "conversation_messages": [("owner_user_id", "INTEGER")],
+            "llm_usage": [("owner_user_id", "INTEGER")],
+            "backtest_results": [("owner_user_id", "INTEGER")],
+            "backtest_summaries": [("owner_user_id", "INTEGER")],
+            "onchain_deposits": [
+                ("wallet_address", "VARCHAR(64)"),
+                ("tx_hash", "VARCHAR(80)"),
+                ("chain_id", "INTEGER"),
+                ("token_address", "VARCHAR(64)"),
+                ("receiver_address", "VARCHAR(64)"),
+                ("token_amount_raw", "VARCHAR(96)"),
+                ("credit_amount", "INTEGER"),
+                ("credit_transaction_id", "INTEGER"),
+                ("status", "VARCHAR(24)"),
+                ("error", "VARCHAR(256)"),
+                ("created_at", "DATETIME"),
+                ("confirmed_at", "DATETIME"),
+            ],
+        }
+        with self._engine.begin() as conn:
+            for table, columns in additions.items():
+                existing = {
+                    row[1]
+                    for row in conn.exec_driver_sql(f"PRAGMA table_info({table})").fetchall()
+                }
+                for column, ddl_type in columns:
+                    if column not in existing:
+                        conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}")
+
+            users_columns = {
+                row[1]
+                for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()
+            }
+            if {"password_salt", "password_hash"}.issubset(users_columns):
+                existing_admin = conn.exec_driver_sql(
+                    "SELECT id, username, password_salt, password_hash FROM users WHERE username = ? LIMIT 1",
+                    ("admin",),
+                ).fetchone()
+                if existing_admin is not None and (
+                    existing_admin[2] is None or existing_admin[3] is None
+                ):
+                    import base64
+                    import hashlib as _hashlib
+                    import secrets
+                    from pathlib import Path
+
+                    salt = secrets.token_bytes(32)
+                    stored = None
+                    try:
+                        cred_path = Path(get_config().database_path).resolve().parent / ".admin_password_hash"
+                        if cred_path.exists():
+                            raw = cred_path.read_text(encoding="utf-8").strip()
+                            salt_b64, hash_b64 = raw.split(":", 1)
+                            salt = base64.standard_b64decode(salt_b64)
+                            stored = base64.standard_b64decode(hash_b64)
+                    except Exception:
+                        stored = None
+                    if stored is None:
+                        stored = _hashlib.pbkdf2_hmac("sha256", b"admin123", salt=salt, iterations=100_000)
+                    conn.exec_driver_sql(
+                        """
+                        UPDATE users
+                        SET password_salt = ?, password_hash = ?, is_admin = COALESCE(is_admin, 1), is_active = COALESCE(is_active, 1)
+                        WHERE username = ?
+                        """,
+                        (salt, stored, str(existing_admin[1])),
+                    )
+
+            # migrate users table from old VARCHAR id to INTEGER id if needed
+            self._migrate_users_table_to_integer_id(conn)
+
+    def _migrate_users_table_to_integer_id(self, conn) -> None:
+        """Rebuild users table with INTEGER id if currently using VARCHAR id."""
+        users_info = {
+            row[1]: row[2]
+            for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()
+        }
+        id_type = (users_info.get("id") or "").upper()
+        if "INT" in id_type:
+            return
+
+        logger.info("Detected old users table schema (VARCHAR id), migrating to INTEGER id")
+
+        import base64
+
+        old_users = conn.exec_driver_sql(
+            "SELECT id, username, password_hash, password_salt, role, status, created_at, updated_at FROM users"
+        ).fetchall()
+
+        new_users = []
+        id_mapping = {}
+        for idx, old in enumerate(old_users):
+            old_id, username, old_pw_hash, old_pw_salt, role, status, created_at, updated_at = old
+            new_id = idx + 1
+            id_mapping[str(old_id)] = new_id
+
+            is_admin = 1 if (role or "").lower() == "admin" else 0
+            is_active = 1 if (status or "").lower() == "active" else 0
+
+            if old_pw_salt is not None and isinstance(old_pw_salt, bytes) and len(old_pw_salt) >= 16:
+                salt = bytes(old_pw_salt)
+                pw_hash = bytes(old_pw_hash) if isinstance(old_pw_hash, bytes) else (
+                    old_pw_hash.encode("utf-8") if old_pw_hash else b""
+                )
+            elif isinstance(old_pw_hash, str) and ":" in old_pw_hash:
+                try:
+                    parts = old_pw_hash.split(":", 1)
+                    salt = base64.standard_b64decode(parts[0])
+                    pw_hash = base64.standard_b64decode(parts[1])
+                except Exception:
+                    salt = b"\x00" * 32
+                    pw_hash = b"\x00" * 32
+            else:
+                salt = b"\x00" * 32
+                pw_hash = bytes(old_pw_hash or b"") if not isinstance(old_pw_hash, str) else old_pw_hash.encode("utf-8")
+
+            new_users.append((new_id, username, salt, pw_hash, is_admin, is_active, created_at, updated_at))
+
+        conn.exec_driver_sql("""
+            CREATE TABLE users_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(64) NOT NULL UNIQUE,
+                password_salt BLOB NOT NULL,
+                password_hash BLOB NOT NULL,
+                is_admin BOOLEAN NOT NULL DEFAULT 0,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                created_at DATETIME,
+                updated_at DATETIME
+            )
+        """)
+
+        for u in new_users:
+            conn.exec_driver_sql(
+                "INSERT INTO users_new (id, username, password_salt, password_hash, is_admin, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                u,
+            )
+
+        conn.exec_driver_sql("DROP TABLE users")
+        conn.exec_driver_sql("ALTER TABLE users_new RENAME TO users")
+
+        # update FK references in child tables
+        fk_tables_columns = [
+            ("user_configs", "user_id"),
+            ("news_intel", "owner_user_id"),
+            ("fundamental_snapshot", "owner_user_id"),
+            ("analysis_history", "owner_user_id"),
+            ("portfolio_accounts", "owner_user_id"),
+            ("conversation_messages", "owner_user_id"),
+            ("llm_usage", "owner_user_id"),
+        ]
+        for table, column in fk_tables_columns:
+            try:
+                rows = conn.exec_driver_sql(
+                    f"SELECT id, {column} FROM {table} WHERE {column} IS NOT NULL"
+                ).fetchall()
+                for row_id, old_ref_id in rows:
+                    new_id = id_mapping.get(str(old_ref_id))
+                    if new_id is not None:
+                        conn.exec_driver_sql(
+                            f"UPDATE {table} SET {column} = ? WHERE id = ?",
+                            (new_id, row_id),
+                        )
+            except Exception:
+                pass
+
+        logger.info("Users table migrated to INTEGER id successfully (%d users)", len(new_users))
+
+    def ensure_default_roles(self) -> None:
+        """Ensure built-in roles and their permissions exist."""
+        defaults = [
+            (
+                SUPER_ADMIN_ROLE_KEY,
+                "超管",
+                "系统内置超管角色，拥有全部菜单权限",
+                True,
+                ADMIN_MENU_KEYS,
+                ADMIN_SETTING_KEYS,
+            ),
+            (
+                DEFAULT_USER_ROLE_KEY,
+                "普通角色",
+                "系统内置普通用户角色",
+                True,
+                DEFAULT_USER_MENU_KEYS,
+                DEFAULT_USER_SETTING_KEYS,
+            ),
+        ]
+        session = self._SessionLocal()
+        try:
+            existing = {
+                row.key: row
+                for row in session.execute(select(Role)).scalars().all()
+            }
+            for key, name, description, is_system, menu_keys, setting_keys in defaults:
+                role = existing.get(key)
+                if role is None:
+                    role = Role(
+                        key=key,
+                        name=name,
+                        description=description,
+                        is_system=is_system,
+                    )
+                    session.add(role)
+                    session.flush()
+                else:
+                    role.name = name
+                    role.description = description
+                    role.is_system = is_system
+                    role.updated_at = datetime.now()
+                    session.add(role)
+
+                current_keys = {
+                    row.menu_key
+                    for row in session.execute(
+                        select(RoleMenuPermission).where(RoleMenuPermission.role_id == role.id)
+                    ).scalars().all()
+                }
+                should_seed_permissions = key == SUPER_ADMIN_ROLE_KEY or not current_keys
+                if should_seed_permissions:
+                    for menu_key in normalize_menu_keys(list(menu_keys)):
+                        if menu_key not in current_keys:
+                            session.add(RoleMenuPermission(role_id=int(role.id), menu_key=menu_key))
+
+                current_setting_keys = {
+                    row.setting_key
+                    for row in session.execute(
+                        select(RoleSettingPermission).where(RoleSettingPermission.role_id == role.id)
+                    ).scalars().all()
+                }
+                should_seed_settings = key in {SUPER_ADMIN_ROLE_KEY, DEFAULT_USER_ROLE_KEY} or not current_setting_keys
+                if should_seed_settings:
+                    for setting_key in normalize_setting_keys(list(setting_keys)):
+                        if setting_key not in current_setting_keys:
+                            session.add(RoleSettingPermission(role_id=int(role.id), setting_key=setting_key))
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def ensure_default_admin_user(self) -> int:
+        """Ensure a migrated admin account exists and owns legacy rows."""
+        import base64
+        import hashlib as _hashlib
+        import secrets
+        from pathlib import Path
+
+        session = self._SessionLocal()
+        try:
+            existing_admin = session.execute(
+                select(User).where(User.username == "admin").limit(1)
+            ).scalar_one_or_none()
+            if existing_admin is not None:
+                existing_admin.is_admin = True
+                existing_admin.is_active = True
+                if existing_admin.password_salt is None or existing_admin.password_hash is None:
+                    salt = secrets.token_bytes(32)
+                    stored = None
+                    try:
+                        cred_path = Path(get_config().database_path).resolve().parent / ".admin_password_hash"
+                        if cred_path.exists():
+                            raw = cred_path.read_text(encoding="utf-8").strip()
+                            salt_b64, hash_b64 = raw.split(":", 1)
+                            salt = base64.standard_b64decode(salt_b64)
+                            stored = base64.standard_b64decode(hash_b64)
+                    except Exception:
+                        stored = None
+                    if stored is None:
+                        stored = _hashlib.pbkdf2_hmac("sha256", b"admin123", salt=salt, iterations=100_000)
+                    existing_admin.password_salt = salt
+                    existing_admin.password_hash = stored
+                    session.add(existing_admin)
+                    session.commit()
+                owner_id = int(existing_admin.id)
+            else:
+                salt = secrets.token_bytes(32)
+                stored = None
+                try:
+                    cred_path = Path(get_config().database_path).resolve().parent / ".admin_password_hash"
+                    if cred_path.exists():
+                        raw = cred_path.read_text(encoding="utf-8").strip()
+                        salt_b64, hash_b64 = raw.split(":", 1)
+                        salt = base64.standard_b64decode(salt_b64)
+                        stored = base64.standard_b64decode(hash_b64)
+                except Exception:
+                    stored = None
+                if stored is None:
+                    stored = _hashlib.pbkdf2_hmac("sha256", b"admin123", salt=salt, iterations=100_000)
+                user = User(
+                    username="admin",
+                    password_salt=salt,
+                    password_hash=stored,
+                    is_admin=True,
+                    is_active=True,
+                )
+                session.add(user)
+                session.flush()
+                owner_id = int(user.id)
+
+            super_role = session.execute(
+                select(Role).where(Role.key == SUPER_ADMIN_ROLE_KEY).limit(1)
+            ).scalar_one_or_none()
+            if super_role is not None:
+                assignment = session.execute(
+                    select(UserRole).where(UserRole.user_id == owner_id).limit(1)
+                ).scalar_one_or_none()
+                if assignment is None:
+                    session.add(UserRole(user_id=owner_id, role_id=int(super_role.id)))
+                else:
+                    assignment.role_id = int(super_role.id)
+                    assignment.updated_at = datetime.now()
+                    session.add(assignment)
+
+            for model in (AnalysisHistory, NewsIntel, FundamentalSnapshot, ConversationMessage, LLMUsage, PortfolioAccount, BacktestSummary):
+                session.query(model).filter(model.owner_user_id.is_(None)).update(
+                    {model.owner_user_id: owner_id},
+                    synchronize_session=False,
+                )
+            # backtest_results backfill: copy owner from analysis_history where possible,
+            # then fill any remaining NULLs with admin.
+            session.execute(
+                BacktestResult.__table__.update()
+                .where(BacktestResult.owner_user_id.is_(None))
+                .values(
+                    owner_user_id=select(AnalysisHistory.owner_user_id)
+                    .where(AnalysisHistory.id == BacktestResult.analysis_history_id)
+                    .scalar_subquery()
+                )
+            )
+            session.query(BacktestResult).filter(BacktestResult.owner_user_id.is_(None)).update(
+                {BacktestResult.owner_user_id: owner_id},
+                synchronize_session=False,
+            )
+            session.commit()
+            return owner_id
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def _load_admin_credential_seed(self) -> tuple[bytes, bytes]:
+        """Load admin credential seed from legacy file or users.admin, falling back to admin123."""
+        import base64
+        import hashlib as _hashlib
+        import secrets
+        from pathlib import Path
+
+        salt = secrets.token_bytes(32)
+        stored = None
+        try:
+            cred_path = Path(get_config().database_path).resolve().parent / ".admin_password_hash"
+            if cred_path.exists():
+                raw = cred_path.read_text(encoding="utf-8").strip()
+                salt_b64, hash_b64 = raw.split(":", 1)
+                salt = base64.standard_b64decode(salt_b64)
+                stored = base64.standard_b64decode(hash_b64)
+        except Exception:
+            stored = None
+
+        if stored is None:
+            try:
+                session = self._SessionLocal()
+                try:
+                    legacy_admin = session.execute(
+                        select(User).where(User.username == "admin").limit(1)
+                    ).scalar_one_or_none()
+                    if legacy_admin and legacy_admin.password_salt and legacy_admin.password_hash:
+                        salt = bytes(legacy_admin.password_salt)
+                        stored = bytes(legacy_admin.password_hash)
+                finally:
+                    session.close()
+            except Exception:
+                stored = None
+
+        if stored is None:
+            stored = _hashlib.pbkdf2_hmac("sha256", b"admin123", salt=salt, iterations=100_000)
+        return salt, stored
+
+    def ensure_default_admin_account(self) -> int:
+        """Ensure the isolated admin_users.admin account exists."""
+        salt, stored = self._load_admin_credential_seed()
+        session = self._SessionLocal()
+        try:
+            row = session.execute(
+                select(AdminUser).where(AdminUser.username == "admin").limit(1)
+            ).scalar_one_or_none()
+            if row is None:
+                row = AdminUser(
+                    username="admin",
+                    password_salt=salt,
+                    password_hash=stored,
+                    is_active=True,
+                )
+                session.add(row)
+                session.flush()
+            else:
+                row.is_active = True
+                row.password_salt = salt
+                row.password_hash = stored
+                row.updated_at = datetime.now()
+                session.add(row)
+                session.flush()
+            admin_id = int(row.id)
+            session.commit()
+            return admin_id
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def sync_admin_account_password(self, password_salt: bytes, password_hash: bytes) -> None:
+        """Update the isolated admin account password from the canonical admin credential."""
+        session = self._SessionLocal()
+        try:
+            row = session.execute(
+                select(AdminUser).where(AdminUser.username == "admin").limit(1)
+            ).scalar_one_or_none()
+            if row is None:
+                row = AdminUser(
+                    username="admin",
+                    password_salt=password_salt,
+                    password_hash=password_hash,
+                    is_active=True,
+                )
+            else:
+                row.password_salt = password_salt
+                row.password_hash = password_hash
+                row.is_active = True
+                row.updated_at = datetime.now()
+            session.add(row)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def get_admin_user_by_username(self, username: str) -> Optional[AdminUser]:
+        username_norm = (username or "").strip().lower()
+        if not username_norm:
+            return None
+        with self.get_session() as session:
+            return session.execute(
+                select(AdminUser).where(AdminUser.username == username_norm).limit(1)
+            ).scalar_one_or_none()
+
+    def get_admin_user_by_id(self, admin_user_id: int) -> Optional[AdminUser]:
+        with self.get_session() as session:
+            return session.execute(
+                select(AdminUser).where(AdminUser.id == int(admin_user_id)).limit(1)
+            ).scalar_one_or_none()
+
+    def _resolve_owner_id(self) -> int:
+        """Return current user ID from request context. Raises if no user is set."""
+        from src.user_context import get_current_user_id
+        user_id = get_current_user_id()
+        if user_id is not None:
+            return user_id
+        raise RuntimeError(
+            "_resolve_owner_id() called without a user context. "
+            "Ensure the calling code runs within an authenticated request or explicitly sets the ContextVar."
+        )
 
     def _run_write_transaction(
         self,
@@ -854,7 +1555,360 @@ class DatabaseManager:
             raise
         finally:
             session.close()
-    
+
+    def get_user_by_username(self, username: str) -> Optional[User]:
+        username_norm = (username or "").strip().lower()
+        if not username_norm:
+            return None
+        with self.get_session() as session:
+            return session.execute(
+                select(User).where(User.username == username_norm).limit(1)
+            ).scalar_one_or_none()
+
+    def get_user_by_id(self, user_id: int) -> Optional[User]:
+        with self.get_session() as session:
+            return session.execute(
+                select(User).where(User.id == int(user_id)).limit(1)
+            ).scalar_one_or_none()
+
+    def create_user(
+        self,
+        *,
+        username: str,
+        password_salt: bytes,
+        password_hash: bytes,
+        is_admin: bool = False,
+    ) -> User:
+        username_norm = (username or "").strip().lower()
+        with self.session_scope() as session:
+            row = User(
+                username=username_norm,
+                password_salt=password_salt,
+                password_hash=password_hash,
+                is_admin=bool(is_admin),
+                is_active=True,
+            )
+            session.add(row)
+            session.flush()
+            role = session.execute(
+                select(Role).where(Role.key == DEFAULT_USER_ROLE_KEY).limit(1)
+            ).scalar_one_or_none()
+            if role is not None:
+                session.add(UserRole(user_id=int(row.id), role_id=int(role.id)))
+            session.expunge(row)
+            return row
+
+    def _role_payload(self, session: Session, role: Optional[Role]) -> Dict[str, Any]:
+        if role is None:
+            return {}
+        menu_keys = [
+            row.menu_key
+            for row in session.execute(
+                select(RoleMenuPermission)
+                .where(RoleMenuPermission.role_id == int(role.id))
+                .order_by(RoleMenuPermission.id.asc())
+            ).scalars().all()
+        ]
+        setting_keys = [
+            row.setting_key
+            for row in session.execute(
+                select(RoleSettingPermission)
+                .where(RoleSettingPermission.role_id == int(role.id))
+                .order_by(RoleSettingPermission.id.asc())
+            ).scalars().all()
+        ]
+        return {
+            "id": int(role.id),
+            "key": str(role.key),
+            "name": str(role.name),
+            "description": role.description or "",
+            "isSystem": bool(role.is_system),
+            "menuKeys": normalize_menu_keys(menu_keys),
+            "settingKeys": normalize_setting_keys(setting_keys),
+            "createdAt": role.created_at.isoformat() if role.created_at else None,
+            "updatedAt": role.updated_at.isoformat() if role.updated_at else None,
+        }
+
+    def list_roles(self) -> List[Dict[str, Any]]:
+        with self.get_session() as session:
+            roles = session.execute(select(Role).order_by(Role.id.asc())).scalars().all()
+            return [self._role_payload(session, role) for role in roles]
+
+    def get_role_by_key(self, role_key: str) -> Optional[Dict[str, Any]]:
+        key = (role_key or "").strip().lower()
+        if not key:
+            return None
+        with self.get_session() as session:
+            role = session.execute(select(Role).where(Role.key == key).limit(1)).scalar_one_or_none()
+            return self._role_payload(session, role) if role else None
+
+    def create_role_record(
+        self,
+        *,
+        key: str,
+        name: str,
+        description: str = "",
+        menu_keys: Optional[List[str]] = None,
+        setting_keys: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        key_norm = (key or "").strip().lower()
+        with self.session_scope() as session:
+            role = Role(
+                key=key_norm,
+                name=(name or "").strip(),
+                description=(description or "").strip(),
+                is_system=False,
+            )
+            session.add(role)
+            session.flush()
+            for menu_key in normalize_menu_keys(menu_keys or []):
+                session.add(RoleMenuPermission(role_id=int(role.id), menu_key=menu_key))
+            for setting_key in normalize_setting_keys(setting_keys or []):
+                session.add(RoleSettingPermission(role_id=int(role.id), setting_key=setting_key))
+            session.flush()
+            payload = self._role_payload(session, role)
+            return payload
+
+    def update_role_record(
+        self,
+        role_id: int,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        menu_keys: Optional[List[str]] = None,
+        setting_keys: Optional[List[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        with self.session_scope() as session:
+            role = session.execute(select(Role).where(Role.id == int(role_id)).limit(1)).scalar_one_or_none()
+            if role is None:
+                return None
+            if name is not None:
+                role.name = name.strip()
+            if description is not None:
+                role.description = description.strip()
+            role.updated_at = datetime.now()
+            session.add(role)
+            if menu_keys is not None:
+                if role.key == SUPER_ADMIN_ROLE_KEY:
+                    menu_keys = ADMIN_MENU_KEYS
+                session.execute(
+                    delete(RoleMenuPermission).where(RoleMenuPermission.role_id == int(role.id))
+                )
+                for menu_key in normalize_menu_keys(menu_keys):
+                    session.add(RoleMenuPermission(role_id=int(role.id), menu_key=menu_key))
+            if setting_keys is not None:
+                if role.key == SUPER_ADMIN_ROLE_KEY:
+                    setting_keys = ADMIN_SETTING_KEYS
+                session.execute(
+                    delete(RoleSettingPermission).where(RoleSettingPermission.role_id == int(role.id))
+                )
+                for setting_key in normalize_setting_keys(setting_keys):
+                    session.add(RoleSettingPermission(role_id=int(role.id), setting_key=setting_key))
+            session.flush()
+            return self._role_payload(session, role)
+
+    def delete_role_record(self, role_id: int) -> None:
+        with self.session_scope() as session:
+            role = session.execute(select(Role).where(Role.id == int(role_id)).limit(1)).scalar_one_or_none()
+            if role is None:
+                raise ValueError("role_not_found")
+            if role.is_system:
+                raise ValueError("system_role_not_deletable")
+            assigned = session.execute(
+                select(UserRole).where(UserRole.role_id == int(role.id)).limit(1)
+            ).scalar_one_or_none()
+            if assigned is not None:
+                raise ValueError("role_in_use")
+            session.execute(delete(RoleMenuPermission).where(RoleMenuPermission.role_id == int(role.id)))
+            session.execute(delete(RoleSettingPermission).where(RoleSettingPermission.role_id == int(role.id)))
+            session.delete(role)
+
+    def _user_role_payload(self, session: Session, user_id: int, is_admin: bool = False) -> Dict[str, Any]:
+        assignment = session.execute(
+            select(UserRole).where(UserRole.user_id == int(user_id)).limit(1)
+        ).scalar_one_or_none()
+        role = None
+        if assignment is not None:
+            role = session.execute(
+                select(Role).where(Role.id == int(assignment.role_id)).limit(1)
+            ).scalar_one_or_none()
+        if role is None:
+            fallback_key = SUPER_ADMIN_ROLE_KEY if is_admin else DEFAULT_USER_ROLE_KEY
+            role = session.execute(
+                select(Role).where(Role.key == fallback_key).limit(1)
+            ).scalar_one_or_none()
+        return self._role_payload(session, role)
+
+    def get_user_role_payload(self, user_id: int, is_admin: bool = False) -> Dict[str, Any]:
+        with self.get_session() as session:
+            return self._user_role_payload(session, int(user_id), is_admin=is_admin)
+
+    def _user_credit_payload(
+        self,
+        session: Session,
+        user_id: int,
+        balance_map: Optional[Dict[int, UserCreditBalance]] = None,
+    ) -> Dict[str, int]:
+        row = balance_map.get(int(user_id)) if balance_map is not None else None
+        if row is None and balance_map is None:
+            row = session.execute(
+                select(UserCreditBalance).where(UserCreditBalance.user_id == int(user_id)).limit(1)
+            ).scalar_one_or_none()
+        return {
+            "creditBalance": int(row.balance) if row else 0,
+            "lifetimeCredits": int(row.lifetime_credits) if row else 0,
+        }
+
+    def _user_account_payload(
+        self,
+        session: Session,
+        user: User,
+        role: Optional[Dict[str, Any]] = None,
+        balance_map: Optional[Dict[int, UserCreditBalance]] = None,
+    ) -> Dict[str, Any]:
+        user_id = int(user.id)
+        if role is None:
+            role = self._user_role_payload(session, user_id, is_admin=bool(user.is_admin))
+        return {
+            "id": user_id,
+            "username": str(user.username),
+            "isAdmin": bool(user.is_admin),
+            "isActive": bool(user.is_active),
+            "role": role,
+            **self._user_credit_payload(session, user_id, balance_map=balance_map),
+            "createdAt": user.created_at.isoformat() if user.created_at else None,
+            "updatedAt": user.updated_at.isoformat() if user.updated_at else None,
+        }
+
+    def list_user_accounts(self) -> List[Dict[str, Any]]:
+        with self.get_session() as session:
+            users = session.execute(
+                select(User)
+                .where(and_(User.username != "admin", User.is_admin.is_(False)))
+                .order_by(User.id.asc())
+            ).scalars().all()
+            user_ids = [int(user.id) for user in users]
+            balances = []
+            if user_ids:
+                balances = session.execute(
+                    select(UserCreditBalance).where(UserCreditBalance.user_id.in_(user_ids))
+                ).scalars().all()
+            balance_map = {int(row.user_id): row for row in balances}
+            return [
+                self._user_account_payload(session, user, balance_map=balance_map)
+                for user in users
+            ]
+
+    def set_user_active(self, user_id: int, is_active: bool) -> Optional[Dict[str, Any]]:
+        with self.session_scope() as session:
+            user = session.execute(select(User).where(User.id == int(user_id)).limit(1)).scalar_one_or_none()
+            if user is None:
+                return None
+            if str(user.username).lower() == "admin" and not is_active:
+                raise ValueError("admin_user_protected")
+            user.is_active = bool(is_active)
+            user.updated_at = datetime.now()
+            session.add(user)
+            session.flush()
+            role = self._user_role_payload(session, int(user.id), is_admin=bool(user.is_admin))
+            return self._user_account_payload(session, user, role=role)
+
+    def assign_user_role(self, user_id: int, role_id: int) -> Optional[Dict[str, Any]]:
+        with self.session_scope() as session:
+            user = session.execute(select(User).where(User.id == int(user_id)).limit(1)).scalar_one_or_none()
+            role = session.execute(select(Role).where(Role.id == int(role_id)).limit(1)).scalar_one_or_none()
+            if user is None or role is None:
+                return None
+            if str(user.username).lower() == "admin" and role.key != SUPER_ADMIN_ROLE_KEY:
+                raise ValueError("admin_user_protected")
+            user.is_admin = bool(role.key == SUPER_ADMIN_ROLE_KEY)
+            user.updated_at = datetime.now()
+            session.add(user)
+            assignment = session.execute(
+                select(UserRole).where(UserRole.user_id == int(user.id)).limit(1)
+            ).scalar_one_or_none()
+            if assignment is None:
+                session.add(UserRole(user_id=int(user.id), role_id=int(role.id)))
+            else:
+                assignment.role_id = int(role.id)
+                assignment.updated_at = datetime.now()
+                session.add(assignment)
+            session.flush()
+            role_payload = self._role_payload(session, role)
+            return self._user_account_payload(session, user, role=role_payload)
+
+    def get_user_config_map(self, user_id: Optional[int]) -> Dict[str, str]:
+        if user_id is None:
+            return {}
+        with self.get_session() as session:
+            rows = session.execute(
+                select(UserConfig).where(UserConfig.user_id == int(user_id))
+            ).scalars().all()
+            return {str(row.key).upper(): row.value or "" for row in rows}
+
+    def upsert_user_config_map(self, user_id: int, updates: Dict[str, str]) -> List[str]:
+        if not updates:
+            return []
+        changed: List[str] = []
+        with self.session_scope() as session:
+            existing_rows = session.execute(
+                select(UserConfig).where(UserConfig.user_id == int(user_id))
+            ).scalars().all()
+            existing = {row.key.upper(): row for row in existing_rows}
+            for raw_key, raw_value in updates.items():
+                key = str(raw_key).upper()
+                value = "" if raw_value is None else str(raw_value)
+                row = existing.get(key)
+                if row is None:
+                    session.add(UserConfig(user_id=int(user_id), key=key, value=value))
+                    changed.append(key)
+                elif row.value != value:
+                    row.value = value
+                    row.updated_at = datetime.now()
+                    changed.append(key)
+        return changed
+
+    # ------------------------------------------------------------------
+    # SystemConfig – 全局系统配置（DB 为权威数据源，.env 仅作引导）
+    # ------------------------------------------------------------------
+
+    def get_system_config_map(self) -> Dict[str, str]:
+        """返回系统配置表中所有键值对。"""
+        with self.get_session() as session:
+            rows = session.execute(select(SystemConfig)).scalars().all()
+            return {str(row.key).upper(): row.value or "" for row in rows}
+
+    def upsert_system_config_map(self, updates: Dict[str, str]) -> List[str]:
+        """批量 upsert 系统配置，返回实际变更的 key 列表。"""
+        if not updates:
+            return []
+        changed: List[str] = []
+        with self.session_scope() as session:
+            existing_rows = session.execute(select(SystemConfig)).scalars().all()
+            existing = {row.key.upper(): row for row in existing_rows}
+            for raw_key, raw_value in updates.items():
+                key = str(raw_key).upper()
+                value = "" if raw_value is None else str(raw_value)
+                row = existing.get(key)
+                if row is None:
+                    session.add(SystemConfig(key=key, value=value))
+                    changed.append(key)
+                elif row.value != value:
+                    row.value = value
+                    row.updated_at = datetime.now()
+                    changed.append(key)
+        return changed
+
+    def get_system_config_version(self) -> str:
+        """返回基于 system_configs 表最大 updated_at 的版本字符串。"""
+        with self.get_session() as session:
+            result = session.execute(
+                select(SystemConfig.updated_at).order_by(SystemConfig.updated_at.desc()).limit(1)
+            ).scalar_one_or_none()
+        if result is None:
+            return "db:empty"
+        return f"db:{result.timestamp()}"
+
     def has_today_data(self, code: str, target_date: Optional[date] = None) -> bool:
         """
         检查是否已有指定日期的数据
@@ -938,6 +1992,7 @@ class DatabaseManager:
         saved_count = 0
         query_ctx = query_context or {}
         current_query_id = (query_ctx.get("query_id") or "").strip()
+        owner_user_id = self._resolve_owner_id()
 
         def _write(session: Session) -> int:
             local_saved_count = 0
@@ -960,7 +2015,9 @@ class DatabaseManager:
                 )
 
                 existing = session.execute(
-                    select(NewsIntel).where(NewsIntel.url == url_key)
+                    select(NewsIntel).where(
+                        and_(NewsIntel.url == url_key, NewsIntel.owner_user_id == owner_user_id)
+                    )
                 ).scalar_one_or_none()
 
                 if existing:
@@ -1002,6 +2059,7 @@ class DatabaseManager:
                 try:
                     with session.begin_nested():
                         record = NewsIntel(
+                            owner_user_id=owner_user_id,
                             code=code,
                             name=name,
                             dimension=dimension,
@@ -1055,11 +2113,13 @@ class DatabaseManager:
         """
         if not query_id or not code or payload is None:
             return 0
+        owner_user_id = self._resolve_owner_id()
 
         try:
             def _write(session: Session) -> int:
                 session.add(
                     FundamentalSnapshot(
+                        owner_user_id=owner_user_id,
                         query_id=query_id,
                         code=code,
                         payload=self._safe_json_dumps(payload),
@@ -1093,6 +2153,7 @@ class DatabaseManager:
         """
         if not query_id or not code:
             return None
+        owner_user_id = self._resolve_owner_id()
 
         with self.get_session() as session:
             try:
@@ -1102,6 +2163,7 @@ class DatabaseManager:
                         and_(
                             FundamentalSnapshot.query_id == query_id,
                             FundamentalSnapshot.code == code,
+                            FundamentalSnapshot.owner_user_id == owner_user_id,
                         )
                     )
                     .order_by(desc(FundamentalSnapshot.created_at))
@@ -1124,10 +2186,18 @@ class DatabaseManager:
             except Exception:
                 return None
 
-    def get_recent_news(self, code: str, days: int = 7, limit: int = 20) -> List[NewsIntel]:
+    def get_recent_news(
+        self,
+        code: str,
+        days: int = 7,
+        limit: int = 20,
+        owner_user_id: Optional[int] = None,
+    ) -> List[NewsIntel]:
         """
         获取指定股票最近 N 天的新闻情报
         """
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
         cutoff_date = datetime.now() - timedelta(days=days)
 
         with self.get_session() as session:
@@ -1136,7 +2206,8 @@ class DatabaseManager:
                 .where(
                     and_(
                         NewsIntel.code == code,
-                        NewsIntel.fetched_at >= cutoff_date
+                        NewsIntel.fetched_at >= cutoff_date,
+                        NewsIntel.owner_user_id == owner_user_id,
                     )
                 )
                 .order_by(desc(NewsIntel.fetched_at))
@@ -1145,7 +2216,12 @@ class DatabaseManager:
 
             return list(results)
 
-    def get_news_intel_by_query_id(self, query_id: str, limit: int = 20) -> List[NewsIntel]:
+    def get_news_intel_by_query_id(
+        self,
+        query_id: str,
+        limit: int = 20,
+        owner_user_id: Optional[int] = None,
+    ) -> List[NewsIntel]:
         """
         根据 query_id 获取新闻情报列表
 
@@ -1157,11 +2233,13 @@ class DatabaseManager:
             NewsIntel 列表（按发布时间或抓取时间倒序）
         """
         from sqlalchemy import func
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
 
         with self.get_session() as session:
             results = session.execute(
                 select(NewsIntel)
-                .where(NewsIntel.query_id == query_id)
+                .where(and_(NewsIntel.query_id == query_id, NewsIntel.owner_user_id == owner_user_id))
                 .order_by(
                     desc(func.coalesce(NewsIntel.published_date, NewsIntel.fetched_at)),
                     desc(NewsIntel.fetched_at)
@@ -1178,7 +2256,8 @@ class DatabaseManager:
         report_type: str,
         news_content: Optional[str],
         context_snapshot: Optional[Dict[str, Any]] = None,
-        save_snapshot: bool = True
+        save_snapshot: bool = True,
+        owner_user_id: Optional[int] = None,
     ) -> int:
         """
         保存分析结果历史记录
@@ -1192,11 +2271,15 @@ class DatabaseManager:
         if save_snapshot and context_snapshot is not None:
             context_text = self._safe_json_dumps(context_snapshot)
 
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
+
         try:
             def _write(session: Session) -> int:
                 session.add(
                     AnalysisHistory(
                         query_id=query_id,
+                        owner_user_id=owner_user_id,
                         code=result.code,
                         name=result.name,
                         report_type=report_type,
@@ -1230,6 +2313,7 @@ class DatabaseManager:
         days: int = 30,
         limit: int = 50,
         exclude_query_id: Optional[str] = None,
+        owner_user_id: Optional[int] = None,
     ) -> List[AnalysisHistory]:
         """
         Query analysis history records.
@@ -1239,6 +2323,8 @@ class DatabaseManager:
         - If query_id is not provided, apply days-based time filtering.
         - exclude_query_id: exclude records with this query_id (for history comparison).
         """
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
         cutoff_date = datetime.now() - timedelta(days=days)
 
         with self.get_session() as session:
@@ -1251,6 +2337,7 @@ class DatabaseManager:
 
             if code:
                 conditions.append(AnalysisHistory.code == code)
+            conditions.append(AnalysisHistory.owner_user_id == owner_user_id)
 
             # exclude_query_id only applies when not doing exact lookup (query_id is None)
             if exclude_query_id and not query_id:
@@ -1271,7 +2358,8 @@ class DatabaseManager:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         offset: int = 0,
-        limit: int = 20
+        limit: int = 20,
+        owner_user_id: Optional[int] = None,
     ) -> Tuple[List[AnalysisHistory], int]:
         """
         分页查询分析历史记录（带总数）
@@ -1287,12 +2375,15 @@ class DatabaseManager:
             Tuple[List[AnalysisHistory], int]: (记录列表, 总数)
         """
         from sqlalchemy import func
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
         
         with self.get_session() as session:
             conditions = []
             
             if code:
                 conditions.append(AnalysisHistory.code == code)
+            conditions.append(AnalysisHistory.owner_user_id == owner_user_id)
             if start_date:
                 # created_at >= start_date 00:00:00
                 conditions.append(AnalysisHistory.created_at >= datetime.combine(start_date, datetime.min.time()))
@@ -1319,7 +2410,7 @@ class DatabaseManager:
             
             return list(results), total
     
-    def get_analysis_history_by_id(self, record_id: int) -> Optional[AnalysisHistory]:
+    def get_analysis_history_by_id(self, record_id: int, owner_user_id: Optional[int] = None) -> Optional[AnalysisHistory]:
         """
         根据数据库主键 ID 查询单条分析历史记录
         
@@ -1332,13 +2423,18 @@ class DatabaseManager:
         Returns:
             AnalysisHistory 对象，不存在返回 None
         """
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
         with self.get_session() as session:
+            conditions = [AnalysisHistory.id == record_id]
+            if owner_user_id is not None:
+                conditions.append(AnalysisHistory.owner_user_id == owner_user_id)
             result = session.execute(
-                select(AnalysisHistory).where(AnalysisHistory.id == record_id)
+                select(AnalysisHistory).where(and_(*conditions))
             ).scalars().first()
             return result
 
-    def delete_analysis_history_records(self, record_ids: List[int]) -> int:
+    def delete_analysis_history_records(self, record_ids: List[int], owner_user_id: Optional[int] = None) -> int:
         """
         删除指定的分析历史记录。
 
@@ -1353,17 +2449,29 @@ class DatabaseManager:
         ids = sorted({int(record_id) for record_id in record_ids if record_id is not None})
         if not ids:
             return 0
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
 
         with self.session_scope() as session:
+            scoped_ids = session.execute(
+                select(AnalysisHistory.id).where(
+                    and_(
+                        AnalysisHistory.id.in_(ids),
+                        AnalysisHistory.owner_user_id == owner_user_id,
+                    )
+                )
+            ).scalars().all()
+            if not scoped_ids:
+                return 0
             session.execute(
-                delete(BacktestResult).where(BacktestResult.analysis_history_id.in_(ids))
+                delete(BacktestResult).where(BacktestResult.analysis_history_id.in_(scoped_ids))
             )
             result = session.execute(
-                delete(AnalysisHistory).where(AnalysisHistory.id.in_(ids))
+                delete(AnalysisHistory).where(AnalysisHistory.id.in_(scoped_ids))
             )
             return result.rowcount or 0
 
-    def get_latest_analysis_by_query_id(self, query_id: str) -> Optional[AnalysisHistory]:
+    def get_latest_analysis_by_query_id(self, query_id: str, owner_user_id: Optional[int] = None) -> Optional[AnalysisHistory]:
         """
         根据 query_id 查询最新一条分析历史记录
 
@@ -1375,10 +2483,15 @@ class DatabaseManager:
         Returns:
             AnalysisHistory 对象，不存在返回 None
         """
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
         with self.get_session() as session:
+            conditions = [AnalysisHistory.query_id == query_id]
+            if owner_user_id is not None:
+                conditions.append(AnalysisHistory.owner_user_id == owner_user_id)
             result = session.execute(
                 select(AnalysisHistory)
-                .where(AnalysisHistory.query_id == query_id)
+                .where(and_(*conditions))
                 .order_by(desc(AnalysisHistory.created_at))
                 .limit(1)
             ).scalars().first()
@@ -1501,6 +2614,52 @@ class DatabaseManager:
                 for i in range(0, len(records), _SQLITE_CHUNK):
                     chunk = records[i : i + _SQLITE_CHUNK]
                     stmt = sqlite_insert(StockDaily).values(chunk)
+                    excluded = stmt.excluded
+                    session.execute(
+                        stmt.on_conflict_do_update(
+                            index_elements=['code', 'date'],
+                            set_={
+                                'open': excluded.open,
+                                'high': excluded.high,
+                                'low': excluded.low,
+                                'close': excluded.close,
+                                'volume': excluded.volume,
+                                'amount': excluded.amount,
+                                'pct_chg': excluded.pct_chg,
+                                'ma5': excluded.ma5,
+                                'ma10': excluded.ma10,
+                                'ma20': excluded.ma20,
+                                'volume_ratio': excluded.volume_ratio,
+                                'data_source': excluded.data_source,
+                                'updated_at': excluded.updated_at,
+                            },
+                        )
+                    )
+                return len(new_records)
+            elif self._is_postgresql_engine:
+                existing_dates = set()
+                _COUNT_CHUNK = 1000
+                for j in range(0, len(batch_dates), _COUNT_CHUNK):
+                    chunk_dates = batch_dates[j : j + _COUNT_CHUNK]
+                    if not chunk_dates:
+                        continue
+                    existing_dates.update(
+                        session.execute(
+                            select(StockDaily.date).where(
+                                and_(
+                                    StockDaily.code == code,
+                                    StockDaily.date.in_(chunk_dates),
+                                )
+                            )
+                        ).scalars().all()
+                    )
+                new_records = [
+                    record for record in records if record['date'] not in existing_dates
+                ]
+                _POSTGRES_CHUNK = 500
+                for i in range(0, len(records), _POSTGRES_CHUNK):
+                    chunk = records[i : i + _POSTGRES_CHUNK]
+                    stmt = postgresql_insert(StockDaily).values(chunk)
                     excluded = stmt.excluded
                     session.execute(
                         stmt.on_conflict_do_update(
@@ -1875,8 +3034,10 @@ class DatabaseManager:
         """
         保存 Agent 对话消息
         """
+        owner_user_id = self._resolve_owner_id()
         with self.session_scope() as session:
             msg = ConversationMessage(
+                owner_user_id=owner_user_id,
                 session_id=session_id,
                 role=role,
                 content=content
@@ -1887,9 +3048,13 @@ class DatabaseManager:
         """
         获取 Agent 对话历史
         """
+        owner_user_id = self._resolve_owner_id()
         with self.session_scope() as session:
             stmt = select(ConversationMessage).filter(
-                ConversationMessage.session_id == session_id
+                and_(
+                    ConversationMessage.session_id == session_id,
+                    ConversationMessage.owner_user_id == owner_user_id,
+                )
             ).order_by(ConversationMessage.created_at.desc()).limit(limit)
             messages = session.execute(stmt).scalars().all()
 
@@ -1898,10 +3063,16 @@ class DatabaseManager:
 
     def conversation_session_exists(self, session_id: str) -> bool:
         """Return True when at least one message exists for the given session."""
+        owner_user_id = self._resolve_owner_id()
         with self.session_scope() as session:
             stmt = (
                 select(ConversationMessage.id)
-                .where(ConversationMessage.session_id == session_id)
+                .where(
+                    and_(
+                        ConversationMessage.session_id == session_id,
+                        ConversationMessage.owner_user_id == owner_user_id,
+                    )
+                )
                 .limit(1)
             )
             return session.execute(stmt).scalar() is not None
@@ -1911,6 +3082,7 @@ class DatabaseManager:
         limit: int = 50,
         session_prefix: Optional[str] = None,
         extra_session_ids: Optional[List[str]] = None,
+        owner_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         获取聊天会话列表（从 conversation_messages 聚合）
@@ -1927,6 +3099,8 @@ class DatabaseManager:
             按最近活跃时间倒序的会话列表，每条包含 session_id, title, message_count, last_active
         """
         from sqlalchemy import func
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
 
         with self.session_scope() as session:
             normalized_prefix = None
@@ -1942,6 +3116,7 @@ class DatabaseManager:
                     func.min(ConversationMessage.created_at).label("created_at"),
                     func.max(ConversationMessage.created_at).label("last_active"),
                 )
+                .where(ConversationMessage.owner_user_id == owner_user_id)
             )
             conditions = []
             if normalized_prefix:
@@ -1984,14 +3159,26 @@ class DatabaseManager:
                 })
             return results
 
-    def get_conversation_messages(self, session_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_conversation_messages(
+        self,
+        session_id: str,
+        limit: int = 100,
+        owner_user_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
         """
         获取单个会话的完整消息列表（用于前端恢复历史）
         """
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
         with self.session_scope() as session:
             stmt = (
                 select(ConversationMessage)
-                .where(ConversationMessage.session_id == session_id)
+                .where(
+                    and_(
+                        ConversationMessage.session_id == session_id,
+                        ConversationMessage.owner_user_id == owner_user_id,
+                    )
+                )
                 .order_by(ConversationMessage.created_at)
                 .limit(limit)
             )
@@ -2006,17 +3193,26 @@ class DatabaseManager:
                 for msg in messages
             ]
 
-    def delete_conversation_session(self, session_id: str) -> int:
+    def delete_conversation_session(
+        self,
+        session_id: str,
+        owner_user_id: Optional[int] = None,
+    ) -> int:
         """
         删除指定会话的所有消息
 
         Returns:
             删除的消息数
         """
+        if owner_user_id is None:
+            owner_user_id = self._resolve_owner_id()
         with self.session_scope() as session:
             result = session.execute(
                 delete(ConversationMessage).where(
-                    ConversationMessage.session_id == session_id
+                    and_(
+                        ConversationMessage.session_id == session_id,
+                        ConversationMessage.owner_user_id == owner_user_id,
+                    )
                 )
             )
             return result.rowcount
@@ -2034,8 +3230,9 @@ class DatabaseManager:
         total_tokens: int,
         stock_code: Optional[str] = None,
     ) -> None:
-        """Append one LLM call record to llm_usage."""
+        """Append one LLM call record to llm_usage. Returns the persisted row."""
         row = LLMUsage(
+            owner_user_id=self._resolve_owner_id(),
             call_type=call_type,
             model=model or "unknown",
             stock_code=stock_code,
@@ -2045,6 +3242,9 @@ class DatabaseManager:
         )
         with self.session_scope() as session:
             session.add(row)
+            session.flush()
+            session.expunge(row)
+        return row
 
     def get_llm_usage_summary(
         self,
@@ -2058,10 +3258,12 @@ class DatabaseManager:
           by_call_type: list of {call_type, calls, total_tokens},
           by_model:     list of {model, calls, total_tokens}
         """
+        owner_user_id = self._resolve_owner_id()
         with self.session_scope() as session:
             base_filter = and_(
                 LLMUsage.called_at >= from_dt,
                 LLMUsage.called_at <= to_dt,
+                LLMUsage.owner_user_id == owner_user_id,
             )
 
             # Overall totals
@@ -2110,6 +3312,47 @@ class DatabaseManager:
         }
 
 
+    # ------------------------------------------------------------------
+    # Credit helpers
+    # ------------------------------------------------------------------
+
+    def add_credit_transaction(
+        self, user_id: int, credit_amount: int,
+        operator_user_id: Optional[int] = None,
+        reason: Optional[str] = None,
+    ) -> CreditTransaction:
+        """Record a manual credit top-up and update the user balance."""
+        with self.session_scope() as session:
+            tx = CreditTransaction(
+                user_id=user_id,
+                credit_amount=credit_amount,
+                operator_user_id=operator_user_id,
+                reason=reason,
+            )
+            session.add(tx)
+            session.flush()
+
+            balance_row = session.execute(
+                select(UserCreditBalance).where(
+                    UserCreditBalance.user_id == user_id
+                ).with_for_update()
+            ).scalar_one_or_none()
+
+            if balance_row is None:
+                balance_row = UserCreditBalance(
+                    user_id=user_id,
+                    balance=credit_amount,
+                    lifetime_credits=credit_amount,
+                )
+                session.add(balance_row)
+            else:
+                balance_row.balance += credit_amount
+                balance_row.lifetime_credits += credit_amount
+
+            session.expunge(tx)
+            return tx
+
+
 # 便捷函数
 def get_db() -> DatabaseManager:
     """获取数据库管理器实例的快捷方式"""
@@ -2122,10 +3365,10 @@ def persist_llm_usage(
     call_type: str,
     stock_code: Optional[str] = None,
 ) -> None:
-    """Fire-and-forget: write one LLM call record to llm_usage. Never raises."""
+    """Fire-and-forget: write one LLM call record + deduct credits. Never raises."""
     try:
         db = DatabaseManager.get_instance()
-        db.record_llm_usage(
+        usage_row = db.record_llm_usage(
             call_type=call_type,
             model=model,
             prompt_tokens=usage.get("prompt_tokens", 0) or 0,
@@ -2133,6 +3376,18 @@ def persist_llm_usage(
             total_tokens=usage.get("total_tokens", 0) or 0,
             stock_code=stock_code,
         )
+        # Deduct credits based on actual token consumption
+        total_tokens = usage.get("total_tokens", 0) or 0
+        if total_tokens > 0:
+            from src.services.credit_service import CreditService
+            cs = CreditService.get_instance()
+            cs.deduct_tokens(
+                user_id=usage_row.owner_user_id,
+                total_tokens=total_tokens,
+                call_type=call_type,
+                model=model,
+                llm_usage_id=usage_row.id,
+            )
     except Exception as exc:
         logging.getLogger(__name__).warning("[LLM usage] failed to persist usage record: %s", exc)
 

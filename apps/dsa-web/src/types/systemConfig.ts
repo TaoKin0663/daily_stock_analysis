@@ -6,6 +6,7 @@ export type SystemConfigCategory =
   | 'system'
   | 'agent'
   | 'backtest'
+  | 'payment'
   | 'uncategorized';
 
 export type SystemConfigDataType =
@@ -24,7 +25,8 @@ export type SystemConfigUIControl =
   | 'select'
   | 'textarea'
   | 'switch'
-  | 'time';
+  | 'time'
+  | 'custom';
 
 export interface SystemConfigOption {
   label: string;
@@ -45,6 +47,7 @@ export interface SystemConfigFieldSchema {
   options: Array<string | SystemConfigOption>;
   validation: Record<string, unknown>;
   displayOrder: number;
+  accessLevel?: 'admin' | 'user';
 }
 
 export interface SystemConfigCategorySchema {

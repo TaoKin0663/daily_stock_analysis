@@ -4,18 +4,20 @@ import sys
 import os
 import tempfile
 import threading
+import sqlite3
 from datetime import date
 from unittest.mock import patch
 
 import pandas as pd
-from sqlalchemy import and_, select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.sql import func
 
 # Ensure src module can be imported
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from src.auth import register_user
 from src.config import Config
-from src.storage import DatabaseManager, StockDaily
+from src.storage import DatabaseManager, Role, RoleSettingPermission, StockDaily
 
 class TestStorage(unittest.TestCase):
     
@@ -100,6 +102,45 @@ class TestStorage(unittest.TestCase):
 
         DatabaseManager.reset_instance()
 
+    def test_list_user_accounts_includes_credit_balances(self):
+        DatabaseManager.reset_instance()
+        db = DatabaseManager(db_url="sqlite:///:memory:")
+
+        funded = db.create_user(username="funded", password_salt=b"salt", password_hash=b"hash")
+        empty = db.create_user(username="empty", password_salt=b"salt", password_hash=b"hash")
+        db.add_credit_transaction(user_id=int(funded.id), credit_amount=250, reason="test top-up")
+
+        users = {item["username"]: item for item in db.list_user_accounts()}
+
+        self.assertEqual(users["funded"]["creditBalance"], 250)
+        self.assertEqual(users["funded"]["lifetimeCredits"], 250)
+        self.assertEqual(users["empty"]["creditBalance"], 0)
+        self.assertEqual(users["empty"]["lifetimeCredits"], 0)
+        self.assertNotIn("admin", users)
+
+        DatabaseManager.reset_instance()
+
+    def test_default_user_role_backfills_new_default_setting_permissions(self):
+        DatabaseManager.reset_instance()
+        db = DatabaseManager(db_url="sqlite:///:memory:")
+
+        with db.session_scope() as session:
+            role = session.execute(select(Role).where(Role.key == "user")).scalar_one()
+            session.execute(
+                delete(RoleSettingPermission).where(
+                    RoleSettingPermission.role_id == int(role.id),
+                    RoleSettingPermission.setting_key == "AGENT_ARCH",
+                )
+            )
+
+        db.ensure_default_roles()
+        role_payload = db.get_role_by_key("user")
+
+        self.assertIn("AGENT_ARCH", role_payload["settingKeys"])
+        self.assertNotIn("AGENT_SKILL_DIR", role_payload["settingKeys"])
+
+        DatabaseManager.reset_instance()
+
     def test_file_sqlite_enables_wal_and_busy_timeout(self):
         temp_dir = tempfile.TemporaryDirectory()
         db_path = os.path.join(temp_dir.name, "sqlite_pragmas.db")
@@ -131,6 +172,78 @@ class TestStorage(unittest.TestCase):
                     os.environ.pop(key, None)
                 else:
                     os.environ[key] = value
+            temp_dir.cleanup()
+
+    def test_get_instance_reinitializes_stale_uninitialized_singleton(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        db_path = os.path.join(temp_dir.name, "sqlite_reinit.db")
+        original_database_path = os.environ.get("DATABASE_PATH")
+
+        try:
+            os.environ["DATABASE_PATH"] = db_path
+            Config.reset_instance()
+            DatabaseManager.reset_instance()
+
+            stale = object.__new__(DatabaseManager)
+            stale._initialized = False
+            DatabaseManager._instance = stale
+
+            db = DatabaseManager.get_instance()
+
+            self.assertIs(db, stale)
+            self.assertTrue(db._initialized)
+            with db.get_session() as session:
+                self.assertIsNotNone(session)
+        finally:
+            DatabaseManager.reset_instance()
+            Config.reset_instance()
+            if original_database_path is None:
+                os.environ.pop("DATABASE_PATH", None)
+            else:
+                os.environ["DATABASE_PATH"] = original_database_path
+            temp_dir.cleanup()
+
+    def test_legacy_users_table_is_migrated_for_registration(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        db_path = os.path.join(temp_dir.name, "legacy_users.db")
+        original_database_path = os.environ.get("DATABASE_PATH")
+
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                """
+                CREATE TABLE users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL UNIQUE
+                )
+                """
+            )
+            conn.execute("INSERT INTO users (username) VALUES (?)", ("admin",))
+            conn.commit()
+        finally:
+            conn.close()
+
+        try:
+            os.environ["DATABASE_PATH"] = db_path
+            Config.reset_instance()
+            DatabaseManager.reset_instance()
+
+            db = DatabaseManager.get_instance()
+            row = db.get_user_by_username("admin")
+            self.assertIsNotNone(row)
+            self.assertIsNotNone(row.password_salt)
+            self.assertIsNotNone(row.password_hash)
+
+            user, err = register_user("legacy_user", "legacyPass123")
+            self.assertIsNone(err)
+            self.assertIsNotNone(user)
+        finally:
+            DatabaseManager.reset_instance()
+            Config.reset_instance()
+            if original_database_path is None:
+                os.environ.pop("DATABASE_PATH", None)
+            else:
+                os.environ["DATABASE_PATH"] = original_database_path
             temp_dir.cleanup()
 
     def test_sqlite_write_transactions_begin_immediate(self):
@@ -209,8 +322,8 @@ class TestStorage(unittest.TestCase):
 
             self.assertEqual(total, 1)
         finally:
-            temp_dir.cleanup()
             DatabaseManager.reset_instance()
+            temp_dir.cleanup()
 
 if __name__ == '__main__':
     unittest.main()

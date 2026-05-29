@@ -1,0 +1,54 @@
+# ===================================
+# A股自选股智能分析系统 - Docker Compose（开发环境）
+# ===================================
+#
+# 使用方式:
+#   docker compose -f docker/docker-compose.dev.yml up -d
+#
+# 仅运行 SearXNG 等第三方基础设施服务，项目本身在本地运行，
+# 改代码即时生效，无需重新构建镜像。
+#
+# 本地启动项目后，.env 中 SEARXNG_BASE_URLS=http://localhost:7088/ 即可直连。
+
+name: daily-stock-analysis-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stock-postgres-dev
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "${POSTGRES_PORT:-5435}:5432"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: stock-searxng-dev
+    restart: unless-stopped
+    ports:
+      - "7088:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - ./searxng/limiter.toml:/etc/searxng/limiter.toml:ro
+      - searxng_data:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  searxng_data:
+  postgres_data:

@@ -7,6 +7,7 @@ import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ChatPage from './pages/ChatPage';
+import PaymentPage from './pages/PaymentPage';
 import PortfolioPage from './pages/PortfolioPage';
 import { ApiErrorAlert, Shell } from './components/common';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -15,7 +16,7 @@ import './App.css';
 
 const AppContent: React.FC = () => {
   const location = useLocation();
-  const { authEnabled, loggedIn, isLoading, loadError, refreshStatus } = useAuth();
+  const { loggedIn, currentUser, isLoading, loadError, refreshStatus } = useAuth();
 
   useEffect(() => {
     useAgentChatStore.getState().setCurrentRoute(location.pathname);
@@ -46,7 +47,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  if (authEnabled && !loggedIn) {
+  if (!loggedIn) {
     if (location.pathname === '/login') {
       return <LoginPage />;
     }
@@ -58,14 +59,39 @@ const AppContent: React.FC = () => {
     return <Navigate to="/" replace />;
   }
 
+  const hasPermission = (menuKey: string) => {
+    if (currentUser?.isAdmin) {
+      return true;
+    }
+    return Boolean(currentUser?.menuPermissions?.includes(menuKey));
+  };
+
+  const firstAllowedPath = [
+    ['home', '/'],
+    ['chat', '/chat'],
+    ['portfolio', '/portfolio'],
+    ['backtest', '/backtest'],
+    ['payment', '/payment'],
+    ['settings', '/settings'],
+  ].find(([key]) => hasPermission(key))?.[1];
+
+  const protectedElement = (menuKey: string, element: React.ReactElement) => (
+    hasPermission(menuKey)
+      ? element
+      : firstAllowedPath
+        ? <Navigate to={firstAllowedPath} replace />
+        : <NotFoundPage />
+  );
+
   return (
     <Routes>
       <Route element={<Shell />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="/portfolio" element={<PortfolioPage />} />
-        <Route path="/backtest" element={<BacktestPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/" element={protectedElement('home', <HomePage />)} />
+        <Route path="/chat" element={protectedElement('chat', <ChatPage />)} />
+        <Route path="/portfolio" element={protectedElement('portfolio', <PortfolioPage />)} />
+        <Route path="/backtest" element={protectedElement('backtest', <BacktestPage />)} />
+        <Route path="/payment" element={protectedElement('payment', <PaymentPage />)} />
+        <Route path="/settings" element={protectedElement('settings', <SettingsPage />)} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route path="/login" element={<LoginPage />} />

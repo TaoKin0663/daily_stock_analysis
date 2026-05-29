@@ -32,7 +32,7 @@ export const DashboardPanelHeader: React.FC<DashboardPanelHeaderProps> = ({
         <div className={cn('flex items-baseline gap-2', headingClassName)}>
           {leading ? <span className="shrink-0">{leading}</span> : null}
           {eyebrow ? (
-            <span className={cn('label-uppercase', accentEyebrow && 'home-title-accent')}>
+            <span className={cn('text-xs font-medium uppercase tracking-wider text-default-500', accentEyebrow && 'text-primary')}>
               {eyebrow}
             </span>
           ) : null}

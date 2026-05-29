@@ -5,7 +5,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException
 
@@ -22,7 +22,9 @@ from api.v1.schemas.system_config import (
 )
 from src.config import Config
 from src.core.config_manager import ConfigManager
+from src.permissions import get_platform_setting_items, get_setting_items
 from src.services.system_config_service import SystemConfigService
+from src.user_context import CurrentUser, use_current_user
 
 
 class SystemConfigApiTestCase(unittest.TestCase):
@@ -62,6 +64,188 @@ class SystemConfigApiTestCase(unittest.TestCase):
         item_map = {item["key"]: item for item in payload["items"]}
         self.assertEqual(item_map["GEMINI_API_KEY"]["value"], "secret-key-value")
         self.assertFalse(item_map["GEMINI_API_KEY"]["is_masked"])
+
+    def test_web_user_config_filters_platform_fields(self) -> None:
+        current_user = CurrentUser(
+            id=123,
+            username="alice",
+            account_type="web",
+            setting_permissions=("STOCK_LIST",),
+        )
+        with use_current_user(current_user):
+            payload = system_config.get_system_config(
+                include_schema=True,
+                service=self.service,
+                current_user=current_user,
+            ).model_dump(by_alias=True)
+
+        keys = {item["key"] for item in payload["items"]}
+        self.assertIn("STOCK_LIST", keys)
+        self.assertNotIn("GEMINI_API_KEY", keys)
+        self.assertNotIn("SCHEDULE_TIME", keys)
+
+    def test_web_user_can_read_and_write_authorized_agent_runtime_config(self) -> None:
+        current_user = CurrentUser(
+            id=123,
+            username="alice",
+            account_type="web",
+            setting_permissions=("AGENT_ARCH", "AGENT_MAX_STEPS"),
+        )
+        db = MagicMock()
+        db.get_user_config_map.return_value = {"AGENT_ARCH": "single"}
+        db.upsert_user_config_map.return_value = ["AGENT_ARCH"]
+
+        with patch("src.storage.DatabaseManager.get_instance", return_value=db):
+            with use_current_user(current_user):
+                current = system_config.get_system_config(
+                    include_schema=True,
+                    service=self.service,
+                    current_user=current_user,
+                ).model_dump(by_alias=True)
+                item_map = {item["key"]: item for item in current["items"]}
+
+                self.assertIn("AGENT_ARCH", item_map)
+                self.assertEqual(item_map["AGENT_ARCH"]["schema"]["access_level"], "user")
+                self.assertNotIn("AGENT_SKILL_DIR", item_map)
+
+                payload = system_config.update_system_config(
+                    request=UpdateSystemConfigRequest(
+                        config_version=current["config_version"],
+                        mask_token="******",
+                        reload_now=False,
+                        items=[{"key": "AGENT_ARCH", "value": "multi"}],
+                    ),
+                    service=self.service,
+                    current_user=current_user,
+                ).model_dump()
+
+        self.assertEqual(payload["applied_count"], 1)
+        db.upsert_user_config_map.assert_called_once_with(123, {"AGENT_ARCH": "multi"})
+        self.assertNotIn("AGENT_ARCH=multi", self.env_path.read_text(encoding="utf-8"))
+
+    def test_admin_config_shows_all_fields_and_writes_global_env(self) -> None:
+        current_user = CurrentUser(
+            id=1,
+            username="admin",
+            is_admin=True,
+            account_type="admin",
+        )
+        with use_current_user(current_user):
+            current = system_config.get_system_config(
+                include_schema=True,
+                service=self.service,
+                current_user=current_user,
+            ).model_dump(by_alias=True)
+            keys = {item["key"] for item in current["items"]}
+            self.assertIn("GEMINI_API_KEY", keys)
+            self.assertIn("STOCK_LIST", keys)
+            self.assertIn("AGENT_ARCH", keys)
+            self.assertIn("AGENT_SKILL_DIR", keys)
+
+            payload = system_config.update_system_config(
+                request=UpdateSystemConfigRequest(
+                    config_version=current["config_version"],
+                    mask_token="******",
+                    reload_now=False,
+                    items=[{"key": "GEMINI_API_KEY", "value": "admin-secret-value"}],
+                ),
+                service=self.service,
+                current_user=current_user,
+            ).model_dump()
+
+        self.assertEqual(payload["applied_count"], 1)
+        self.assertIn("GEMINI_API_KEY=admin-secret-value", self.env_path.read_text(encoding="utf-8"))
+
+    def test_admin_can_write_user_level_settings_as_platform_defaults(self) -> None:
+        current_user = CurrentUser(
+            id=1,
+            username="admin",
+            is_admin=True,
+            account_type="admin",
+        )
+        with use_current_user(current_user):
+            current = system_config.get_system_config(
+                include_schema=True,
+                service=self.service,
+                current_user=current_user,
+            ).model_dump(by_alias=True)
+
+            payload = system_config.update_system_config(
+                request=UpdateSystemConfigRequest(
+                    config_version=current["config_version"],
+                    mask_token="******",
+                    reload_now=False,
+                    items=[{"key": "STOCK_LIST", "value": "600519,300750"}],
+                ),
+                service=self.service,
+                current_user=current_user,
+            ).model_dump()
+
+        self.assertEqual(payload["applied_count"], 1)
+        self.assertIn("STOCK_LIST=600519,300750", self.env_path.read_text(encoding="utf-8"))
+
+    def test_web_user_cannot_write_platform_config(self) -> None:
+        current_user = CurrentUser(
+            id=123,
+            username="alice",
+            account_type="web",
+            setting_permissions=("STOCK_LIST",),
+        )
+        current = system_config.get_system_config(include_schema=False, service=self.service).model_dump()
+        with self.assertRaises(HTTPException) as context:
+            system_config.update_system_config(
+                request=UpdateSystemConfigRequest(
+                    config_version=current["config_version"],
+                    items=[{"key": "GEMINI_API_KEY", "value": "blocked"}],
+                ),
+                service=self.service,
+                current_user=current_user,
+            )
+
+        self.assertEqual(context.exception.status_code, 403)
+        self.assertEqual(context.exception.detail["error"], "setting_permission_denied")
+
+    def test_web_user_cannot_write_agent_config_without_setting_permission(self) -> None:
+        current_user = CurrentUser(
+            id=123,
+            username="alice",
+            account_type="web",
+            setting_permissions=("STOCK_LIST",),
+        )
+        current = system_config.get_system_config(include_schema=False, service=self.service).model_dump()
+        with self.assertRaises(HTTPException) as context:
+            system_config.update_system_config(
+                request=UpdateSystemConfigRequest(
+                    config_version=current["config_version"],
+                    items=[{"key": "AGENT_ARCH", "value": "multi"}],
+                ),
+                service=self.service,
+                current_user=current_user,
+            )
+
+        self.assertEqual(context.exception.status_code, 403)
+        self.assertEqual(context.exception.detail["error"], "setting_permission_denied")
+
+    def test_agent_runtime_fields_are_in_all_setting_catalogs(self) -> None:
+        user_setting_keys = {item["key"] for item in get_setting_items()}
+        platform_setting_keys = {item["key"] for item in get_platform_setting_items()}
+
+        for key in {
+            "AGENT_MODE",
+            "AGENT_MAX_STEPS",
+            "AGENT_ARCH",
+            "AGENT_ORCHESTRATOR_MODE",
+            "AGENT_ORCHESTRATOR_TIMEOUT_S",
+            "AGENT_DEEP_RESEARCH_BUDGET",
+            "AGENT_DEEP_RESEARCH_TIMEOUT",
+            "AGENT_MEMORY_ENABLED",
+            "AGENT_SKILL_AUTOWEIGHT",
+        }:
+            self.assertIn(key, user_setting_keys)
+            self.assertIn(key, platform_setting_keys)
+
+        self.assertNotIn("AGENT_SKILL_DIR", user_setting_keys)
+        self.assertIn("AGENT_SKILL_DIR", platform_setting_keys)
 
     def test_put_config_updates_secret_and_plain_field(self) -> None:
         current = system_config.get_system_config(include_schema=False, service=self.service).model_dump()

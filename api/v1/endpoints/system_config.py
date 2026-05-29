@@ -8,7 +8,8 @@ import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.deps import get_system_config_service
+from api.deps import get_system_config_service, get_current_user, require_admin
+from src.user_context import CurrentUser
 from api.v1.schemas.common import ErrorResponse
 from api.v1.schemas.system_config import (
     DiscoverLLMChannelModelsRequest,
@@ -32,10 +33,133 @@ from src.services.system_config_service import (
     ConfigValidationError,
     SystemConfigService,
 )
+from src.permissions import SUPER_ADMIN_ROLE_KEY
+from src.core.config_registry import get_field_definition
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _is_request_user(value: object) -> bool:
+    return isinstance(value, CurrentUser)
+
+
+def _is_admin_config_context(current_user: CurrentUser) -> bool:
+    return getattr(current_user, "account_type", "web") in {"admin", "system"}
+
+
+def _setting_access_level(key: str, item: dict | None = None) -> str:
+    schema = (item or {}).get("schema") or {}
+    if schema:
+        return str(schema.get("access_level") or "admin")
+    return str(get_field_definition(str(key or "").upper()).get("access_level") or "admin")
+
+
+
+def _has_all_setting_permissions(current_user: CurrentUser) -> bool:
+    return bool(
+        _is_admin_config_context(current_user)
+        or current_user.is_admin
+        or current_user.role_key == SUPER_ADMIN_ROLE_KEY
+    )
+
+
+def _filter_config_payload_for_user(payload: dict, current_user: CurrentUser) -> dict:
+    if not _is_request_user(current_user):
+        return payload
+
+    admin_context = _is_admin_config_context(current_user)
+    allowed = set(current_user.setting_permissions or ())
+    payload = dict(payload)
+    filtered = []
+    for item in payload.get("items", []):
+        key = str(item.get("key") or "").upper()
+        is_platform = _setting_access_level(key, item) == "admin"
+        if admin_context:
+            filtered.append(item)
+            continue
+        if is_platform:
+            continue
+        if _has_all_setting_permissions(current_user) or key in allowed:
+            filtered.append(item)
+    payload["items"] = filtered
+    return payload
+
+
+def _filter_schema_payload_for_user(payload: dict, current_user: CurrentUser) -> dict:
+    if not _is_request_user(current_user):
+        return payload
+
+    admin_context = _is_admin_config_context(current_user)
+    allowed = set(current_user.setting_permissions or ())
+    payload = dict(payload)
+    categories = []
+    for category in payload.get("categories", []):
+        category_payload = dict(category)
+        fields = []
+        for field in category_payload.get("fields", []):
+            key = str(field.get("key") or "").upper()
+            is_platform = str(field.get("access_level") or "admin") == "admin"
+            if admin_context:
+                fields.append(field)
+                continue
+            if is_platform:
+                continue
+            if _has_all_setting_permissions(current_user) or key in allowed:
+                fields.append(field)
+        category_payload["fields"] = fields
+        if category_payload["fields"]:
+            categories.append(category_payload)
+    payload["categories"] = categories
+    return payload
+
+
+def _ensure_setting_write_permissions(keys: list[str], current_user: CurrentUser) -> None:
+    if not _is_request_user(current_user):
+        return
+
+    admin_context = _is_admin_config_context(current_user)
+    platform_keys = [
+        key for key in keys
+        if _setting_access_level(key) == "admin"
+    ]
+    user_keys = [
+        key for key in keys
+        if _setting_access_level(key) != "admin"
+    ]
+    if admin_context:
+        denied = []
+    else:
+        denied = platform_keys
+    if denied:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "setting_permission_denied",
+                "message": "Current context cannot modify one or more setting fields",
+                "settingKeys": denied,
+            },
+        )
+
+    if _has_all_setting_permissions(current_user):
+        return
+
+    allowed = set(current_user.setting_permissions or ())
+    denied = [
+        key
+        for key in user_keys
+        if str(key or "").upper() not in allowed
+    ]
+    if denied:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "setting_permission_denied",
+                "message": "Current role cannot modify one or more setting fields",
+                "settingKeys": denied,
+            },
+        )
 
 
 def _ensure_desktop_mode() -> None:
@@ -64,10 +188,12 @@ def _ensure_desktop_mode() -> None:
 def get_system_config(
     include_schema: bool = Query(True, description="Whether to include schema metadata"),
     service: SystemConfigService = Depends(get_system_config_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> SystemConfigResponse:
     """Load and return current system configuration."""
     try:
         payload = service.get_config(include_schema=include_schema)
+        payload = _filter_config_payload_for_user(payload, current_user)
         return SystemConfigResponse.model_validate(payload)
     except Exception as exc:
         logger.error("Failed to load system configuration: %s", exc, exc_info=True)
@@ -95,8 +221,11 @@ def get_system_config(
 def update_system_config(
     request: UpdateSystemConfigRequest,
     service: SystemConfigService = Depends(get_system_config_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> UpdateSystemConfigResponse:
     """Validate and persist system configuration updates."""
+    _ensure_setting_write_permissions([item.key for item in request.items], current_user)
+
     try:
         payload = service.update(
             config_version=request.config_version,
@@ -254,8 +383,10 @@ def import_desktop_system_config(
 def validate_system_config(
     request: ValidateSystemConfigRequest,
     service: SystemConfigService = Depends(get_system_config_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> ValidateSystemConfigResponse:
     """Run pre-save validation only."""
+    _ensure_setting_write_permissions([item.key for item in request.items], current_user)
     try:
         payload = service.validate(items=[item.model_dump() for item in request.items])
         return ValidateSystemConfigResponse.model_validate(payload)
@@ -283,6 +414,7 @@ def validate_system_config(
 def test_llm_channel(
     request: TestLLMChannelRequest,
     service: SystemConfigService = Depends(get_system_config_service),
+    _admin: None = Depends(require_admin()),
 ) -> TestLLMChannelResponse:
     """Validate and test one channel definition without writing `.env`."""
     try:
@@ -328,6 +460,7 @@ def test_llm_channel(
 def discover_llm_channel_models(
     request: DiscoverLLMChannelModelsRequest,
     service: SystemConfigService = Depends(get_system_config_service),
+    _admin: None = Depends(require_admin()),
 ) -> DiscoverLLMChannelModelsResponse:
     """Discover models for one channel definition without writing `.env`."""
     try:
@@ -371,10 +504,12 @@ def discover_llm_channel_models(
 )
 def get_system_config_schema(
     service: SystemConfigService = Depends(get_system_config_service),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> SystemConfigSchemaResponse:
     """Return schema metadata for system configuration fields."""
     try:
         payload = service.get_schema()
+        payload = _filter_schema_payload_for_user(payload, current_user)
         return SystemConfigSchemaResponse.model_validate(payload)
     except Exception as exc:
         logger.error("Failed to load system configuration schema: %s", exc, exc_info=True)

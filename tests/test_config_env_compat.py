@@ -51,6 +51,106 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
             "tencent,akshare_sina,efinance,akshare_em",
         )
 
+    def test_database_url_takes_precedence_when_configured(self):
+        with patch.dict(
+            os.environ,
+            {
+                "DATABASE_URL": "postgresql+psycopg://dsa:dsa_password@localhost:5435/daily_stock_analysis",
+                "DATABASE_PATH": "./data/stock_analysis.db",
+            },
+            clear=True,
+        ):
+            database_url = Config._resolve_database_url(
+                preexisting_database_url=os.environ.get("DATABASE_URL"),
+                preexisting_database_path=os.environ.get("DATABASE_PATH"),
+            )
+
+        self.assertEqual(
+            database_url,
+            "postgresql+psycopg://dsa:dsa_password@localhost:5435/daily_stock_analysis",
+        )
+
+    def test_explicit_database_path_can_override_dotenv_database_url(self):
+        with patch.dict(
+            os.environ,
+            {
+                "DATABASE_URL": "postgresql+psycopg://dsa:dsa_password@localhost:5435/daily_stock_analysis",
+                "DATABASE_PATH": "./data/test.db",
+            },
+            clear=True,
+        ):
+            database_url = Config._resolve_database_url(
+                preexisting_database_url=None,
+                preexisting_database_path="./data/test.db",
+            )
+
+        self.assertEqual(database_url, "")
+
+    def test_env_file_database_path_can_override_stale_database_url(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env_path = Path(temp_dir) / ".env"
+            db_path = Path(temp_dir) / "test.db"
+            env_path.write_text(f"DATABASE_PATH={db_path}\n", encoding="utf-8")
+
+            with patch.dict(
+                os.environ,
+                {
+                    "ENV_FILE": str(env_path),
+                    "DATABASE_URL": "postgresql+psycopg://dsa:dsa_password@localhost:5435/daily_stock_analysis",
+                    "DATABASE_PATH": str(db_path),
+                },
+                clear=True,
+            ):
+                database_url = Config._resolve_database_url(
+                    preexisting_database_url=os.environ.get("DATABASE_URL"),
+                    preexisting_database_path=os.environ.get("DATABASE_PATH"),
+                )
+
+        self.assertEqual(database_url, "")
+
+    def test_postgres_host_builds_database_url_when_explicit_url_is_empty(self):
+        with patch.dict(
+            os.environ,
+            {
+                "DATABASE_URL": "",
+                "POSTGRES_HOST": "postgres",
+                "POSTGRES_INTERNAL_PORT": "5432",
+                "POSTGRES_DB": "daily_stock_analysis",
+                "POSTGRES_USER": "dsa",
+                "POSTGRES_PASSWORD": "dsa_password",
+            },
+            clear=True,
+        ):
+            database_url = Config._resolve_database_url(
+                preexisting_database_url="",
+                preexisting_database_path=None,
+            )
+
+        self.assertEqual(
+            database_url,
+            "postgresql+psycopg://dsa:dsa_password@postgres:5432/daily_stock_analysis",
+        )
+
+    def test_postgres_host_rewrites_localhost_database_url_for_container(self):
+        with patch.dict(
+            os.environ,
+            {
+                "DATABASE_URL": "postgresql+psycopg://dsa:dsa_password@localhost:5435/daily_stock_analysis",
+                "POSTGRES_HOST": "postgres",
+                "POSTGRES_INTERNAL_PORT": "5432",
+            },
+            clear=True,
+        ):
+            database_url = Config._resolve_database_url(
+                preexisting_database_url=os.environ.get("DATABASE_URL"),
+                preexisting_database_path=None,
+            )
+
+        self.assertEqual(
+            database_url,
+            "postgresql+psycopg://dsa:dsa_password@postgres:5432/daily_stock_analysis",
+        )
+
     @patch("src.config.setup_env")
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])
     def test_schedule_run_immediately_falls_back_to_legacy_run_immediately(

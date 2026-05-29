@@ -5,7 +5,25 @@ export type AuthStatusResponse = {
   loggedIn: boolean;
   passwordSet?: boolean;
   passwordChangeable?: boolean;
-  setupState: 'enabled' | 'password_retained' | 'no_password';
+  setupState: 'enabled' | 'no_password';
+  currentUser?: {
+    id: number;
+    username: string;
+    isAdmin: boolean;
+    accountType?: 'admin' | 'web' | 'system';
+    role?: {
+      id: number;
+      key: string;
+      name: string;
+      isSystem: boolean;
+      menuKeys: string[];
+      settingKeys?: string[];
+    } | null;
+    roleKey?: string | null;
+    roleName?: string | null;
+    menuPermissions?: string[];
+    settingPermissions?: string[];
+  } | null;
 };
 
 export const authApi = {
@@ -39,12 +57,20 @@ export const authApi = {
     return data;
   },
 
-  async login(password: string, passwordConfirm?: string): Promise<void> {
-    const body: { password: string; passwordConfirm?: string } = { password };
+  async login(password: string, passwordConfirm?: string, username = 'admin'): Promise<void> {
+    const body: { username: string; password: string; passwordConfirm?: string } = { username, password };
     if (passwordConfirm !== undefined) {
       body.passwordConfirm = passwordConfirm;
     }
     await apiClient.post('/api/v1/auth/login', body);
+  },
+
+  async register(username: string, password: string, passwordConfirm: string): Promise<void> {
+    await apiClient.post('/api/v1/auth/register', {
+      username,
+      password,
+      passwordConfirm,
+    });
   },
 
   async changePassword(

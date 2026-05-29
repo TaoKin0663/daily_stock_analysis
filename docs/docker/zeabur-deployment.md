@@ -129,7 +129,8 @@ Dockerfile 已采用多阶段构建，前端会在镜像构建时自动打包。
 |--------|------|--------|
 | `PYTHONUNBUFFERED` | 启用 Python 无缓冲输出 | `1` |
 | `LOG_DIR` | 日志目录 | `/app/logs` |
-| `DATABASE_PATH` | 数据库路径 | `/app/data/stock_analysis.db` |
+| `DATABASE_URL` | PostgreSQL 连接 URL；配置后优先使用 PostgreSQL | 空 |
+| `DATABASE_PATH` | SQLite 回退数据库路径；未配置 `DATABASE_URL` 时生效 | `/app/data/stock_analysis.db` |
 
 ### 5.2 API 服务配置
 

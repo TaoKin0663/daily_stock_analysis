@@ -1,8 +1,9 @@
 import type React from 'react';
-import { useRef, useCallback, useEffect, useId } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import type { HistoryItem } from '../../types/analysis';
 import { Badge, Button, ScrollArea } from '../common';
 import { DashboardPanelHeader, DashboardStateBlock } from '../dashboard';
+import { Checkbox } from '@heroui/react/checkbox';
 import { HistoryListItem } from './HistoryListItem';
 
 interface HistoryListProps {
@@ -42,8 +43,6 @@ export const HistoryList: React.FC<HistoryListProps> = ({
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
-  const selectAllRef = useRef<HTMLInputElement>(null);
-  const selectAllId = useId();
 
   const selectedCount = items.filter((item) => selectedIds.has(item.id)).length;
   const allVisibleSelected = items.length > 0 && selectedCount === items.length;
@@ -78,14 +77,9 @@ export const HistoryList: React.FC<HistoryListProps> = ({
     return () => observer.disconnect();
   }, [handleObserver]);
 
-  useEffect(() => {
-    if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = someVisibleSelected;
-    }
-  }, [someVisibleSelected]);
-
   return (
-    <aside className={`glass-card overflow-hidden flex flex-col ${className}`}>
+    // glass-card
+    <aside className={`overflow-hidden flex flex-col ${className}`}>
       <ScrollArea
         viewportRef={scrollContainerRef}
         viewportClassName="p-4"
@@ -113,22 +107,21 @@ export const HistoryList: React.FC<HistoryListProps> = ({
 
           {items.length > 0 && (
             <div className="flex items-center gap-2">
-              <label
-                className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-2 py-1"
-                htmlFor={selectAllId}
+              <Checkbox
+                isSelected={allVisibleSelected}
+                isIndeterminate={someVisibleSelected}
+                isDisabled={isDeleting}
+                onChange={onToggleSelectAll}
+                aria-label="全选当前已加载历史记录"
+                className="[&_[data-slot='checkbox-default-indicator--checkmark']]:size-4 [&_[data-slot='checkbox-default-indicator--indeterminate']]:size-4"
               >
-                <input
-                  id={selectAllId}
-                  ref={selectAllRef}
-                  type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={onToggleSelectAll}
-                  disabled={isDeleting}
-                  aria-label="全选当前已加载历史记录"
-                  className="history-select-all-checkbox h-3.5 w-3.5 cursor-pointer bg-transparent accent-primary focus:ring-primary/30 disabled:opacity-50"
-                />
-                <span className="text-[11px] text-muted-text select-none">全选当前</span>
-              </label>
+                <Checkbox.Control className="size-5 rounded-md before:rounded-md">
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                <Checkbox.Content>
+                  <span className="text-[11px] text-default-500 select-none">全选当前</span>
+                </Checkbox.Content>
+              </Checkbox>
               <Button
                 variant="danger-subtle"
                 size="xsm"

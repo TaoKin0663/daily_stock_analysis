@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""System configuration service for `.env` based settings."""
+"""系统配置服务（DB 为权威数据源，.env 仅作引导与 fallback）。"""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ from src.config import (
     resolve_news_window_days,
     resolve_llm_channel_protocol,
     setup_env,
+    clear_user_config_cache,
 )
 from src.core.config_manager import ConfigManager
 from src.core.config_registry import (
@@ -67,6 +68,14 @@ class ConfigImportError(Exception):
 class SystemConfigService:
     """Service layer for reading, validating, and updating runtime configuration."""
 
+    # 基础设施键：始终从环境变量/.env读取，不存入DB system_configs
+    _INFRASTRUCTURE_KEYS: Set[str] = {
+        "DATABASE_URL", "DATA_DIR",
+        "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_PORT",
+        "POSTGRES_INTERNAL_PORT", "POSTGRES_HOST",
+        "ENV_FILE", "DSA_DESKTOP_MODE",
+    }
+
     _DISPLAY_KEY_ALIASES: Dict[str, Tuple[str, ...]] = {
         "AGENT_SKILL_DIR": ("AGENT_SKILL_DIR", "AGENT_STRATEGY_DIR"),
         "AGENT_SKILL_AUTOWEIGHT": ("AGENT_SKILL_AUTOWEIGHT", "AGENT_STRATEGY_AUTOWEIGHT"),
@@ -81,6 +90,40 @@ class SystemConfigService:
 
     def __init__(self, manager: Optional[ConfigManager] = None):
         self._manager = manager or ConfigManager()
+        self._sync_env_to_db()
+
+    def _sync_env_to_db(self) -> None:
+        """将 .env 中 DB 尚不存在的 key 同步到 system_configs 表（已有 key 以 DB 为准）。"""
+        try:
+            from src.storage import DatabaseManager
+            env_map = self._manager.read_config_map()
+            if not env_map:
+                return
+            db_map = DatabaseManager.get_instance().get_system_config_map()
+            new_keys: Dict[str, str] = {}
+            for key, value in env_map.items():
+                key_upper = key.upper()
+                if key_upper in self._INFRASTRUCTURE_KEYS:
+                    continue
+                if key_upper not in db_map:
+                    new_keys[key_upper] = value
+            if new_keys:
+                DatabaseManager.get_instance().upsert_system_config_map(new_keys)
+                logger.info("从 .env 同步了 %d 个新配置键到数据库", len(new_keys))
+        except Exception:
+            logger.warning("从 .env 同步配置到数据库失败，将在后续读取时使用 .env fallback", exc_info=True)
+
+    @staticmethod
+    def _get_config_version() -> str:
+        """返回当前配置版本（DB 优先，.env 文件版本作为 fallback）。"""
+        try:
+            from src.storage import DatabaseManager
+            db_version = DatabaseManager.get_instance().get_system_config_version()
+            if db_version != "db:empty":
+                return db_version
+        except Exception:
+            pass
+        return ConfigManager().get_config_version()
 
     def get_schema(self) -> Dict[str, Any]:
         """Return grouped schema metadata for UI rendering."""
@@ -152,8 +195,29 @@ class SystemConfigService:
         return display_map
 
     def get_config(self, include_schema: bool = True, mask_token: str = "******") -> Dict[str, Any]:
-        """Return current config values without server-side secret masking."""
-        config_map = self._build_display_config_map(self._manager.read_config_map())
+        """Return current config values without server-side secret masking.
+
+        读取优先级：DB system_configs > .env fallback > DB user_configs 覆盖。
+        """
+        from src.user_context import get_current_user, get_current_user_id
+        from src.storage import DatabaseManager
+
+        # 1) 以 .env 为底板（统一 uppercase）
+        env_map = {k.upper(): v for k, v in self._manager.read_config_map().items()}
+
+        # 2) DB system_configs 覆盖 .env（DB 是权威）
+        try:
+            env_map.update(DatabaseManager.get_instance().get_system_config_map())
+        except Exception:
+            logger.warning("读取系统配置数据库失败，使用 .env fallback", exc_info=True)
+
+        config_map = self._build_display_config_map(env_map)
+
+        # 3) 普通用户叠加个人配置覆盖
+        current_user = get_current_user()
+        user_id = None if getattr(current_user, "account_type", "web") in {"admin", "system"} else get_current_user_id()
+        if user_id is not None:
+            config_map.update(DatabaseManager.get_instance().get_user_config_map(user_id))
         registered_keys = set(get_registered_field_keys())
         all_keys = set(config_map.keys()) | registered_keys
 
@@ -197,7 +261,7 @@ class SystemConfigService:
         }
 
     def validate(self, items: Sequence[Dict[str, str]], mask_token: str = "******") -> Dict[str, Any]:
-        """Validate submitted items without writing to `.env`."""
+        """校验提交的配置项，不持久化。"""
         issues = self._collect_issues(items=items, mask_token=mask_token)
         valid = not any(issue["severity"] == "error" for issue in issues)
         return {
@@ -206,16 +270,21 @@ class SystemConfigService:
         }
 
     def export_desktop_env(self) -> Dict[str, Any]:
-        """Return the raw active `.env` content for desktop-only backup."""
-        if self._manager.env_path.exists():
-            content = self._manager.env_path.read_text(encoding="utf-8")
-        else:
-            content = ""
+        """导出当前系统配置为 .env 格式文本（从 DB 读取）。"""
+        from src.storage import DatabaseManager
+        db_map = DatabaseManager.get_instance().get_system_config_map()
+        # 以 .env 为底板，DB 覆盖（保证导出内容与实际运行时一致）
+        env_map = {k.upper(): v for k, v in self._manager.read_config_map().items()}
+        env_map.update(db_map)
+        lines = [f"{key}={value}" for key, value in sorted(env_map.items())]
+        content = "\n".join(lines)
+        if content:
+            content += "\n"
 
         return {
             "content": content,
-            "config_version": self._manager.get_config_version(),
-            "updated_at": self._manager.get_updated_at(),
+            "config_version": self._get_config_version(),
+            "updated_at": None,
         }
 
     def import_desktop_env(
@@ -225,8 +294,8 @@ class SystemConfigService:
         content: str,
         reload_now: bool = True,
     ) -> Dict[str, Any]:
-        """Merge imported `.env` assignments into the active config."""
-        current_version = self._manager.get_config_version()
+        """导入 .env 格式文本，合并到当前配置。"""
+        current_version = self._get_config_version()
         if current_version != config_version:
             raise ConfigConflictError(current_version=current_version)
 
@@ -501,8 +570,8 @@ class SystemConfigService:
         mask_token: str = "******",
         reload_now: bool = True,
     ) -> Dict[str, Any]:
-        """Validate and persist updates into `.env`, then reload runtime config."""
-        current_version = self._manager.get_config_version()
+        """Validate and persist updates to database, then reload runtime config."""
+        current_version = self._get_config_version()
         if current_version != config_version:
             raise ConfigConflictError(current_version=current_version)
 
@@ -524,20 +593,58 @@ class SystemConfigService:
             if bool(field_schema.get("is_sensitive", False)):
                 sensitive_keys.add(key)
 
-        updated_keys, skipped_masked_keys, new_version = self._manager.apply_updates(
-            updates=updates,
-            sensitive_keys=sensitive_keys,
-            mask_token=mask_token,
-        )
+        from src.user_context import get_current_user_id, get_current_user
+        from src.storage import DatabaseManager
+        current_user = get_current_user()
+        user_id = None if getattr(current_user, "account_type", "web") in {"admin", "system"} else get_current_user_id()
+        if user_id is not None:
+            # Defense-in-depth: non-admin users cannot write admin-level keys
+            is_admin = bool(current_user.is_admin) if current_user else False
+            if not is_admin:
+                admin_keys = [key for key, _ in updates if get_field_definition(key).get("access_level") == "admin"]
+                if admin_keys:
+                    raise ConfigValidationError(issues=[
+                        {
+                            "key": k,
+                            "code": "admin_required",
+                            "message": f"仅管理员可修改平台配置项：{k}",
+                            "severity": "error",
+                        }
+                        for k in admin_keys
+                    ])
+
+            current_user_config = DatabaseManager.get_instance().get_user_config_map(user_id)
+            effective_updates: Dict[str, str] = {}
+            skipped_masked_keys: List[str] = []
+            for key, value in updates:
+                if key in sensitive_keys and value == mask_token and current_user_config.get(key):
+                    skipped_masked_keys.append(key)
+                    continue
+                effective_updates[key] = value
+            updated_keys = DatabaseManager.get_instance().upsert_user_config_map(user_id, effective_updates)
+            new_version = current_version
+        else:
+            effective_updates: Dict[str, str] = {}
+            skipped_masked_keys: List[str] = []
+            for key, value in updates:
+                if key in sensitive_keys and value == mask_token:
+                    existing_value = DatabaseManager.get_instance().get_system_config_map().get(key)
+                    if existing_value not in (None, ""):
+                        skipped_masked_keys.append(key)
+                        continue
+                effective_updates[key] = value
+            updated_keys = DatabaseManager.get_instance().upsert_system_config_map(effective_updates)
+            new_version = DatabaseManager.get_instance().get_system_config_version()
 
         warnings: List[str] = []
         reload_triggered = False
         if reload_now:
             try:
                 Config.reset_instance()
+                clear_user_config_cache(user_id)
                 self._reload_runtime_singletons()
                 setup_env(override=True)
-                config = Config.get_instance()
+                config = Config.get_instance() if user_id is None else __import__("src.config", fromlist=["get_config"]).get_config()
                 warnings.extend(config.validate())
                 reload_triggered = True
             except Exception as exc:  # pragma: no cover - defensive branch
@@ -610,7 +717,7 @@ class SystemConfigService:
             else:
                 warnings.append(
                     (
-                        f"MAX_WORKERS={max_workers} 已写入 .env，但本次未触发运行时重载"
+                        f"MAX_WORKERS={max_workers} 已保存，但本次未触发运行时重载"
                         "（reload_now=false）；重载后才会应用。"
                     )
                 )
@@ -621,7 +728,7 @@ class SystemConfigService:
         if startup_only_run_keys:
             warnings.append(
                 (
-                    f"{', '.join(sorted(startup_only_run_keys))} 已写入 .env。"
+                    f"{', '.join(sorted(startup_only_run_keys))} 已保存。"
                     "它属于启动期单次运行配置：当前已运行的 WebUI/API 进程不会因为本次保存立即触发分析；"
                     "请重启当前进程后，在非 schedule 模式下按新值生效。"
                 )
@@ -635,7 +742,7 @@ class SystemConfigService:
         if startup_only_schedule_keys:
             warnings.append(
                 (
-                    f"{', '.join(sorted(startup_only_schedule_keys))} 已写入 .env。"
+                    f"{', '.join(sorted(startup_only_schedule_keys))} 已保存。"
                     "这些属于启动期调度配置：当前已运行的 WebUI/API 进程不会因为本次保存立即触发分析，"
                     "也不会自动重建 scheduler；请重启当前进程，并以 schedule 模式重新启动后生效。"
                 )
@@ -649,11 +756,11 @@ class SystemConfigService:
         mask_token: str = "******",
     ) -> None:
         """Apply raw key updates without validation (internal service use only)."""
-        self._manager.apply_updates(
-            updates=updates,
-            sensitive_keys=set(),
-            mask_token=mask_token,
-        )
+        from src.storage import DatabaseManager
+        db_updates: Dict[str, str] = {}
+        for key, value in updates:
+            db_updates[key.upper()] = value
+        DatabaseManager.get_instance().upsert_system_config_map(db_updates)
 
     @staticmethod
     def _parse_imported_env_content(content: str) -> List[Dict[str, str]]:
@@ -684,6 +791,12 @@ class SystemConfigService:
     def _collect_issues(self, items: Sequence[Dict[str, str]], mask_token: str) -> List[Dict[str, Any]]:
         """Collect field-level and cross-field validation issues."""
         current_map = self._manager.read_config_map()
+        from src.user_context import get_current_user, get_current_user_id
+        from src.storage import DatabaseManager
+        current_user = get_current_user()
+        user_id = None if getattr(current_user, "account_type", "web") in {"admin", "system"} else get_current_user_id()
+        if user_id is not None:
+            current_map.update(DatabaseManager.get_instance().get_user_config_map(user_id))
         effective_map = dict(current_map)
         issues: List[Dict[str, Any]] = []
         updated_map: Dict[str, str] = {}
@@ -858,7 +971,7 @@ class SystemConfigService:
 
     @staticmethod
     def _normalize_value_for_storage(value: str, field_schema: Dict[str, Any]) -> str:
-        """Normalize submitted values before persisting to the single-line .env file."""
+        """将提交值标准化后持久化到数据库。"""
         if field_schema.get("data_type", "string") != "json":
             return value
 

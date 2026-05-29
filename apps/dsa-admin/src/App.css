@@ -1,0 +1,103 @@
+.admin-shell {
+  min-height: 100vh;
+}
+
+.admin-loading,
+.admin-login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(245, 247, 251, 0.94)),
+    #f5f7fb;
+}
+
+.admin-login-card {
+  width: min(420px, 100%);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+}
+
+.admin-login-title {
+  margin: 0 0 8px !important;
+}
+
+.admin-login-form {
+  margin-top: 24px;
+}
+
+.admin-login-alert {
+  margin-bottom: 16px;
+}
+
+.admin-brand {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-header {
+  height: 72px;
+  padding: 0 24px;
+  background: #fff;
+  border-bottom: 1px solid #edf0f5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-title {
+  margin: 0 !important;
+}
+
+.admin-content {
+  padding: 24px;
+  background: #f5f7fb;
+}
+
+.table-title {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.table-title h5 {
+  margin: 0;
+}
+
+.admin-error {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f5f7fb;
+}
+
+.admin-error .ant-alert {
+  width: min(560px, 100%);
+}
+
+.admin-settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-settings-form {
+  max-width: 960px;
+}
+
+.admin-setting-number {
+  width: 100%;
+}

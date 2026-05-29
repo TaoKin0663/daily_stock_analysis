@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [改进] C 端 Agent 模型分配下拉框改用 HeroUI Select，与设置页其他字段控件保持一致。
+- [改进] 管理后台平台系统设置新增 Agent 模型分配下拉选择，平台可为未获个人设置权限的用户维护 technical/intel/risk/decision 默认模型。
+- [改进] 多 Agent 执行日志新增每个 Agent 的计划尝试模型、是否使用模型覆盖、实际使用模型、Token 与耗时，便于核对 Agent 模型分配是否生效。
+- [改进] C 端 Agent 设置新增多 Agent 模型分配入口，授权用户可从平台可用模型中为 technical/intel/risk/decision 单独选择模型，未设置或无权限用户继续使用平台默认配置。
+- [修复] 修复积分倍率配置为空时 `/api/v1/payment/rate` 返回 500，并让历史与问股接口显式按当前登录用户读取数据。
+- [改进] Web 与管理后台登录认证改为强制开启，移除免登录访问和关闭认证入口。
+- [改进] 核心 Agent 运行偏好迁移为 C 端个人设置，后台系统设置继续保留模型渠道、策略目录和事件监控等平台级配置。
+- [改进] 平台级系统配置迁移到 `dsa-admin` 系统设置，C 端设置页仅处理个人配置并继续受角色权限控制。
+- [改进] C 端开放注册用户与管理后台超管账号分表，后台登录仅使用独立 `admin_users` 超管账号。
+- [改进] 管理后台用户列表显示当前积分余额和累计积分。
+- [修复] 拆分 C 端与管理后台登录 Cookie，退出任一端不再让另一端登录态失效。
+- [改进] 管理后台设置项权限按 C 端设置页分类展示，并使用中文字段名与配置 Key 对照，降低角色授权理解成本。
+- [新功能] 角色权限新增 `dsa-web` 设置项级别授权，管理后台可分配具体配置字段，C 端设置页按权限显示并由后端校验保存权限。
+- [改进] 管理后台仅允许超管访问，角色菜单权限收敛为 C 端 `dsa-web` 菜单，C 端不再显示管理后台入口。
+- [改进] 管理后台角色菜单权限改用 Transfer 穿梭框选择，提升授权编辑效率。
+- [改进] 管理后台改为基于路由的页面结构，用户管理与角色管理通过独立地址访问。
+- [新功能] 新增 `dsa-admin` 管理后台与角色菜单权限管理，内置超管/普通角色不可删除，新注册用户默认普通角色。
+- [新功能] Web 加密货币充值改为 Sepolia ERC20 转账，并由后端校验交易哈希后入账积分。
+- [改进] Web 侧边栏在已连接钱包时展示地址头像、截断地址、当前网络与断开连接入口。
+- [新功能] Web 充值页新增微信、支付宝、加密货币三种支付方式入口，并通过 wagmi/viem 接入 Sepolia 钱包检测与连接。
+- [修复] 修复回测页面 HeroUI Tooltip 悬停不显示，并统一使用 HeroUI Input/Button 公开组件。
+- [修复] 修复注册接口在数据库单例残留半初始化实例时返回 500 的问题。
+- [新功能] Web 认证新增用户名注册与多用户会话，分析历史、资讯、问股会话、LLM 用量、持仓账户和 Web 配置按用户隔离。
 
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 <!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
@@ -15,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [改进] Docker 发布工作流收敛为更清晰的正式发布与手动补发链路，并统一官方 Docker Hub 镜像名为 `zhulinsen/daily_stock_analysis`
 - [文档] 补充官方镜像拉取、`docker run` 用法与 `.env` / 数据目录映射说明，不再仅覆盖 Compose 部署路径
 
+- [改进] Web 系统配置密码字段支持通过眼睛图标切换明文显示。
+
+- [改进] 支持通过 `DATABASE_URL` 切换 PostgreSQL 数据库，Docker Compose 内置 PostgreSQL 并保留 SQLite 回退路径。
 ## [3.13.0] - 2026-04-21
 
 ### 发布亮点
