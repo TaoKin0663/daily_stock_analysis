@@ -316,6 +316,55 @@ class AnalysisApiContractTestCase(unittest.TestCase):
         self.assertEqual(report.details.financial_report["report_date"], "2025-12-31")
         self.assertEqual(report.details.dividend_metrics["ttm_dividend_yield_pct"], 2.5)
 
+    def test_build_analysis_report_extracts_company_profile_from_snapshot(self) -> None:
+        if _build_analysis_report is None:
+            self.skipTest("analysis endpoint helpers unavailable in this environment")
+
+        report = _build_analysis_report(
+            report_data={
+                "meta": {},
+                "summary": {},
+                "strategy": {},
+                "details": {},
+            },
+            query_id="q1",
+            stock_code="AAPL",
+            stock_name="Apple",
+            context_snapshot={
+                "enhanced_context": {
+                    "fundamental_context": {
+                        "company_profile": {
+                            "data": {
+                                "full_name": "Apple Inc.",
+                                "industry": "Consumer Electronics",
+                                "legal_representative": "Tim Cook",
+                                "listing_date": "1980-12-12",
+                                "total_share_capital": "15000000000",
+                                "float_share_capital": "14900000000",
+                                "employee_count": "164000",
+                                "website": "www.apple.com",
+                                "company_intro": "Apple designs consumer technology products.",
+                                "actual_controller": "Public shareholders",
+                                "actual_controller_hold_ratio": "12.25",
+                                "direct_controller": "N/A",
+                                "control_type": "Public company",
+                            }
+                        }
+                    }
+                }
+            },
+            fallback_fundamental_payload=None,
+        )
+
+        self.assertEqual(report.details.company_profile["full_name"], "Apple Inc.")
+        self.assertEqual(report.details.company_profile["industry"], "Consumer Electronics")
+        self.assertEqual(report.details.company_profile["legal_representative"], "Tim Cook")
+        self.assertEqual(report.details.company_profile["company_intro"], "Apple designs consumer technology products.")
+        self.assertEqual(report.details.company_profile["actual_controller"], "Public shareholders")
+        self.assertEqual(report.details.company_profile["actual_controller_hold_ratio"], 12.25)
+        self.assertEqual(report.details.company_profile["total_share_capital"], 15000000000)
+        self.assertEqual(report.details.company_profile["employee_count"], 164000)
+
     def test_build_analysis_report_extracts_related_board_fields_from_snapshot(self) -> None:
         if _build_analysis_report is None:
             self.skipTest("analysis endpoint helpers unavailable in this environment")

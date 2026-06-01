@@ -81,6 +81,24 @@ export interface SectorRankings {
   bottom?: SectorRankingItem[];
 }
 
+export interface CompanyProfile {
+  fullName?: string;
+  industry?: string;
+  legalRepresentative?: string;
+  listingDate?: string;
+  totalShareCapital?: number;
+  floatShareCapital?: number;
+  employeeCount?: number;
+  website?: string;
+  mainBusiness?: string;
+  businessScope?: string;
+  companyIntro?: string;
+  actualController?: string;
+  actualControllerHoldRatio?: number;
+  directController?: string;
+  controlType?: string;
+}
+
 /** Details section */
 export interface ReportDetails {
   newsContent?: string;
@@ -88,6 +106,7 @@ export interface ReportDetails {
   contextSnapshot?: Record<string, unknown>;
   financialReport?: Record<string, unknown>;
   dividendMetrics?: Record<string, unknown>;
+  companyProfile?: CompanyProfile;
   belongBoards?: RelatedBoard[];
   sectorRankings?: SectorRankings;
 }

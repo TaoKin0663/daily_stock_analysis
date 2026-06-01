@@ -186,7 +186,10 @@ export function SystemSettingsPage() {
   }, [form])
 
   useEffect(() => {
-    void load()
+    const task = window.setTimeout(() => {
+      void load()
+    }, 0)
+    return () => window.clearTimeout(task)
   }, [load])
 
   const agentModelMapItem = useMemo(
@@ -197,20 +200,23 @@ export function SystemSettingsPage() {
   useEffect(() => {
     if (!agentModelMapItem) return
     let cancelled = false
-    setAgentModelsLoading(true)
-    setAgentModelsError(null)
-    void requestJson<AgentModelsResponse>('/api/v1/agent/models')
-      .then((payload) => {
-        if (!cancelled) setAgentModels(payload.models ?? [])
-      })
-      .catch((err) => {
-        if (!cancelled) setAgentModelsError(err instanceof Error ? err.message : '模型列表加载失败')
-      })
-      .finally(() => {
-        if (!cancelled) setAgentModelsLoading(false)
-      })
+    const task = window.setTimeout(() => {
+      setAgentModelsLoading(true)
+      setAgentModelsError(null)
+      void requestJson<AgentModelsResponse>('/api/v1/agent/models')
+        .then((payload) => {
+          if (!cancelled) setAgentModels(payload.models ?? [])
+        })
+        .catch((err) => {
+          if (!cancelled) setAgentModelsError(err instanceof Error ? err.message : '模型列表加载失败')
+        })
+        .finally(() => {
+          if (!cancelled) setAgentModelsLoading(false)
+        })
+    }, 0)
     return () => {
       cancelled = true
+      window.clearTimeout(task)
     }
   }, [agentModelMapItem])
 
@@ -259,7 +265,7 @@ export function SystemSettingsPage() {
     if (!config) return
     setSaving(true)
     try {
-      const values = form.getFieldsValue()
+      const values = form.getFieldsValue(true)
       const items = config.items
         .filter((item) => item.schema?.is_editable !== false)
         .map((item) => ({

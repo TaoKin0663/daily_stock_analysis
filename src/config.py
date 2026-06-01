@@ -2437,7 +2437,7 @@ class Config:
 def get_config() -> Config:
     """获取全局配置实例的快捷方式"""
     try:
-        from src.user_context import get_current_user_id
+        from src.user_context import get_current_user, get_current_user_id
         user_id = get_current_user_id()
     except Exception:
         user_id = None
@@ -2454,6 +2454,12 @@ def get_config() -> Config:
                     return Config.get_instance()
                 overrides = DatabaseManager.get_instance().get_user_config_map(int(user_id))
                 os.environ.update({key: value for key, value in overrides.items()})
+                # 用户有权限设置但未覆盖的 key → 清除平台 fallback，回退到代码默认值
+                current_user = get_current_user()
+                if current_user and current_user.setting_permissions:
+                    for key in current_user.setting_permissions:
+                        if key not in overrides:
+                            os.environ.pop(key, None)
                 cfg = Config._load_from_env()
                 _USER_CONFIG_CACHE[int(user_id)] = cfg
                 return cfg

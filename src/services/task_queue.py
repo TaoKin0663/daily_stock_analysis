@@ -592,7 +592,14 @@ class AnalysisTaskQueue:
 
             current_user = None
             if owner_user_id is not None:
-                current_user = CurrentUser(id=int(owner_user_id), username="", is_admin=False)
+                from src.storage import DatabaseManager
+                role_payload = DatabaseManager.get_instance().get_user_role_payload(int(owner_user_id))
+                current_user = CurrentUser(
+                    id=int(owner_user_id),
+                    username="",
+                    is_admin=False,
+                    setting_permissions=tuple(role_payload.get("settingKeys") or ()),
+                )
             with use_current_user(current_user):
                 result = service.analyze_stock(
                     stock_code=stock_code,

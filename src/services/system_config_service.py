@@ -90,7 +90,6 @@ class SystemConfigService:
 
     def __init__(self, manager: Optional[ConfigManager] = None):
         self._manager = manager or ConfigManager()
-        self._sync_env_to_db()
 
     def _sync_env_to_db(self) -> None:
         """将 .env 中 DB 尚不存在的 key 同步到 system_configs 表（已有 key 以 DB 为准）。"""
@@ -217,7 +216,13 @@ class SystemConfigService:
         current_user = get_current_user()
         user_id = None if getattr(current_user, "account_type", "web") in {"admin", "system"} else get_current_user_id()
         if user_id is not None:
-            config_map.update(DatabaseManager.get_instance().get_user_config_map(user_id))
+            user_overrides = DatabaseManager.get_instance().get_user_config_map(user_id)
+            config_map.update(user_overrides)
+            # 用户有权设置但未覆盖的 key → 不继承平台值
+            if current_user and current_user.setting_permissions:
+                for key in current_user.setting_permissions:
+                    if key not in user_overrides and key in config_map:
+                        config_map.pop(key)
         registered_keys = set(get_registered_field_keys())
         all_keys = set(config_map.keys()) | registered_keys
 
@@ -254,7 +259,7 @@ class SystemConfigService:
         )
 
         return {
-            "config_version": self._manager.get_config_version(),
+            "config_version": self._get_config_version(),
             "mask_token": mask_token,
             "items": items,
             "updated_at": self._manager.get_updated_at(),

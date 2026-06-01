@@ -1863,6 +1863,7 @@ class DataFetcherManager:
         if status == "failed":
             return False
         for block in (
+            "company_profile",
             "valuation",
             "growth",
             "earnings",
@@ -1878,6 +1879,12 @@ class DataFetcherManager:
 
     def _build_market_not_supported(self, market: str, reason: str) -> Dict[str, Any]:
         blocks = {
+            "company_profile": self._build_fundamental_block(
+                "not_supported",
+                {},
+                [{"provider": "fundamental_pipeline", "result": "not_supported", "duration_ms": 0}],
+                [reason],
+            ),
             "valuation": self._build_fundamental_block(
                 "partial" if market == "etf" else "not_supported",
                 {},
@@ -1932,10 +1939,364 @@ class DataFetcherManager:
             **blocks,
         }
 
+    @staticmethod
+    def _clean_profile_text(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text or text.lower() in {"none", "null", "nan", "n/a", "--"}:
+            return None
+        return text
+
+    @staticmethod
+    def _profile_int(value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            if isinstance(value, str):
+                text = value.strip().replace(",", "")
+                if not text:
+                    return None
+                return int(float(text))
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _profile_float(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            if isinstance(value, str):
+                text = value.strip().replace(",", "").rstrip("%")
+                if not text:
+                    return None
+                return float(text)
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _first_profile_text(*values: Any) -> Optional[str]:
+        for value in values:
+            text = DataFetcherManager._clean_profile_text(value)
+            if text:
+                return text
+        return None
+
+    @staticmethod
+    def _canonical_yfinance_symbol(stock_code: str, market: str) -> str:
+        code = normalize_stock_code(stock_code)
+        if market == "hk":
+            digits = "".join(ch for ch in code if ch.isdigit())
+            if digits:
+                return f"{digits.zfill(4)}.HK"
+        return code.upper()
+
+    def _get_cn_actual_controller(self, stock_code: str) -> Dict[str, Any]:
+        import akshare as ak
+
+        df = ak.stock_hold_control_cninfo(symbol="全部")
+        if df is None or getattr(df, "empty", True) or "证券代码" not in df.columns:
+            return {}
+
+        code = normalize_stock_code(stock_code)
+        filtered = df[df["证券代码"].astype(str).str.zfill(6) == code]
+        if filtered.empty:
+            return {}
+        if "变动日期" in filtered.columns:
+            filtered = filtered.sort_values("变动日期", ascending=False)
+        row = filtered.iloc[0].to_dict()
+        return {
+            "actual_controller": self._first_profile_text(row.get("实际控制人名称")),
+            "actual_controller_hold_ratio": self._profile_float(row.get("控股比例")),
+            "direct_controller": self._first_profile_text(row.get("直接控制人名称")),
+            "control_type": self._first_profile_text(row.get("控制类型")),
+        }
+
+    def _get_cn_company_profile(self, stock_code: str) -> Dict[str, Any]:
+        import akshare as ak
+
+        df = ak.stock_profile_cninfo(symbol=stock_code)
+        if df is None or getattr(df, "empty", True):
+            return {}
+
+        def frame_to_dict(frame: Any) -> Dict[str, Any]:
+            if frame is None or getattr(frame, "empty", True):
+                return {}
+            if len(frame.index) == 1:
+                return {
+                    str(key): value
+                    for key, value in frame.iloc[0].to_dict().items()
+                    if self._clean_profile_text(key)
+                }
+            return {}
+
+        profile_data = frame_to_dict(df)
+        if not profile_data:
+            return {}
+
+        def pick(data: Dict[str, Any], *keys: str) -> Optional[Any]:
+            for key in keys:
+                if key in data:
+                    return data[key]
+            for source_key, value in data.items():
+                if any(key in source_key for key in keys):
+                    return value
+            return None
+
+        result = {
+            "full_name": self._first_profile_text(
+                pick(profile_data, "公司名称"),
+                pick(profile_data, "A股简称"),
+                self.get_stock_name(stock_code, allow_realtime=False),
+            ),
+            "industry": self._first_profile_text(pick(profile_data, "所属行业")),
+            "legal_representative": self._first_profile_text(pick(profile_data, "法人代表", "法定代表人")),
+            "listing_date": self._first_profile_text(pick(profile_data, "上市日期")),
+            "website": self._first_profile_text(pick(profile_data, "官方网站")),
+            "main_business": self._first_profile_text(pick(profile_data, "主营业务")),
+            "business_scope": self._first_profile_text(pick(profile_data, "经营范围")),
+            "company_intro": self._first_profile_text(pick(profile_data, "机构简介")),
+        }
+
+        try:
+            value_df = ak.stock_value_em(symbol=stock_code)
+        except Exception as exc:
+            logger.debug(
+                "[company_profile] supplemental stock_value_em failed stock_code=%s error=%s",
+                stock_code,
+                exc,
+            )
+            value_df = None
+
+        if value_df is None or getattr(value_df, "empty", True):
+            return result
+
+        latest_df = value_df
+        if "数据日期" in latest_df.columns:
+            latest_df = latest_df.sort_values("数据日期")
+        latest_value = latest_df.iloc[-1].to_dict()
+        result["total_share_capital"] = self._profile_int(pick(latest_value, "总股本"))
+        result["float_share_capital"] = self._profile_int(pick(latest_value, "流通股本"))
+        return result
+
+    def _get_hk_company_profile(self, stock_code: str) -> Dict[str, Any]:
+        import akshare as ak
+
+        symbol = "".join(ch for ch in normalize_stock_code(stock_code) if ch.isdigit()).zfill(4)
+        df = ak.stock_hk_company_profile_em(symbol=symbol)
+        if df is None or getattr(df, "empty", True):
+            return {}
+
+        def pick(data: Dict[str, Any], *keys: str) -> Optional[Any]:
+            for key in keys:
+                if key in data:
+                    return data[key]
+            for source_key, value in data.items():
+                if any(key in source_key for key in keys):
+                    return value
+            return None
+
+        profile_data = {
+            str(key): value
+            for key, value in df.iloc[0].to_dict().items()
+            if self._clean_profile_text(key)
+        }
+        result = {
+            "full_name": self._first_profile_text(
+                pick(profile_data, "公司名称"),
+                pick(profile_data, "英文名称"),
+            ),
+            "industry": self._first_profile_text(pick(profile_data, "所属行业")),
+            "website": self._first_profile_text(pick(profile_data, "公司网址")),
+            "employee_count": self._profile_int(pick(profile_data, "员工人数")),
+            "company_intro": self._first_profile_text(pick(profile_data, "公司介绍")),
+        }
+
+        try:
+            indicator_df = ak.stock_hk_financial_indicator_em(symbol=symbol)
+        except Exception as exc:
+            logger.debug(
+                "[company_profile] supplemental stock_hk_financial_indicator_em failed stock_code=%s error=%s",
+                stock_code,
+                exc,
+            )
+            indicator_df = None
+
+        if indicator_df is None or getattr(indicator_df, "empty", True):
+            return result
+
+        indicator_data = {
+            str(key): value
+            for key, value in indicator_df.iloc[0].to_dict().items()
+            if self._clean_profile_text(key)
+        }
+        result["total_share_capital"] = self._profile_int(pick(indicator_data, "已发行股本(股)", "法定股本(股)"))
+        result["float_share_capital"] = self._profile_int(pick(indicator_data, "已发行股本-H股(股)"))
+        return result
+
+    def _get_yfinance_company_profile(self, stock_code: str, market: str) -> Dict[str, Any]:
+        import yfinance as yf
+
+        symbol = self._canonical_yfinance_symbol(stock_code, market)
+        info = yf.Ticker(symbol).info or {}
+        if not isinstance(info, dict):
+            return {}
+        first_trade = info.get("firstTradeDateEpochUtc")
+        listing_date = None
+        if first_trade is not None:
+            try:
+                listing_date = datetime.utcfromtimestamp(float(first_trade)).date().isoformat()
+            except (TypeError, ValueError, OSError):
+                listing_date = None
+        return {
+            "full_name": self._first_profile_text(info.get("longName"), info.get("shortName")),
+            "industry": self._first_profile_text(info.get("industry"), info.get("sector")),
+            "listing_date": self._first_profile_text(listing_date, info.get("ipoDate")),
+            "total_share_capital": self._profile_int(info.get("sharesOutstanding")),
+            "float_share_capital": self._profile_int(info.get("floatShares")),
+            "employee_count": self._profile_int(info.get("fullTimeEmployees")),
+            "website": self._first_profile_text(info.get("website")),
+        }
+
+    @staticmethod
+    def _compact_company_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            key: value
+            for key, value in profile.items()
+            if value is not None and value != ""
+        }
+
+    def get_company_profile_context(self, stock_code: str, budget_seconds: Optional[float] = None) -> Dict[str, Any]:
+        """Company profile block for homepage basic information."""
+        from src.config import get_config
+
+        config = get_config()
+        stock_code = normalize_stock_code(stock_code)
+        market = _market_tag(stock_code)
+        timeout = float(budget_seconds if budget_seconds is not None else config.fundamental_fetch_timeout_seconds)
+
+        if timeout <= 0:
+            logger.warning(
+                "[company_profile] skip stock_code=%s market=%s reason=stage_timeout timeout_seconds=%.3f",
+                stock_code,
+                market,
+                timeout,
+            )
+            return self._build_fundamental_block(
+                "failed",
+                {},
+                [{"provider": "company_profile", "result": "failed", "duration_ms": 0}],
+                ["fundamental stage timeout"],
+            )
+
+        if _is_etf_code(stock_code):
+            logger.info(
+                "[company_profile] skip stock_code=%s market=%s reason=etf_not_supported",
+                stock_code,
+                market,
+            )
+            return self._build_fundamental_block(
+                "not_supported",
+                {},
+                [{"provider": "company_profile", "result": "not_supported", "duration_ms": 0}],
+                ["etf not fully supported"],
+            )
+
+        if market == "cn":
+            task = lambda: self._get_cn_company_profile(stock_code)
+            provider = "akshare_stock_profile_cninfo"
+        elif market == "hk":
+            task = lambda: self._get_hk_company_profile(stock_code)
+            provider = "akshare_stock_hk_company_profile_em"
+        elif market == "us":
+            task = lambda: self._get_yfinance_company_profile(stock_code, market)
+            provider = "yfinance_company_profile"
+        else:
+            logger.info(
+                "[company_profile] skip stock_code=%s market=%s reason=market_not_supported",
+                stock_code,
+                market,
+            )
+            return self._build_fundamental_block(
+                "not_supported",
+                {},
+                [{"provider": "company_profile", "result": "not_supported", "duration_ms": 0}],
+                ["market not supported"],
+            )
+
+        logger.info(
+            "[company_profile] start stock_code=%s market=%s provider=%s timeout_seconds=%.3f",
+            stock_code,
+            market,
+            provider,
+            timeout,
+        )
+        profile, err, cost_ms = self._run_with_retry(task, timeout, "company_profile")
+        payload = self._compact_company_profile(profile if isinstance(profile, dict) else {})
+        source_chain = self._normalize_source_chain([provider], "company_profile", "partial", cost_ms)
+        errors = [err] if err else []
+        if market == "cn" and payload:
+            remaining_timeout = max(0.0, timeout - cost_ms / 1000.0)
+            if remaining_timeout > 0:
+                controller_payload, controller_err, controller_ms = self._run_with_retry(
+                    lambda: self._get_cn_actual_controller(stock_code),
+                    remaining_timeout,
+                    "company_profile_actual_controller",
+                )
+                controller_data = self._compact_company_profile(
+                    controller_payload if isinstance(controller_payload, dict) else {}
+                )
+                if controller_data:
+                    payload.update(controller_data)
+                controller_status = self._infer_block_status(
+                    controller_data,
+                    "partial" if controller_payload is not None else "failed",
+                )
+                source_chain.extend(self._normalize_source_chain(
+                    ["akshare_stock_hold_control_cninfo"],
+                    "company_profile_actual_controller",
+                    controller_status,
+                    controller_ms,
+                ))
+                if controller_err:
+                    errors.append(controller_err)
+        status = self._infer_block_status(payload, "partial" if profile is not None else "failed")
+        if source_chain and isinstance(source_chain[0], dict):
+            source_chain[0]["result"] = status
+        if err:
+            logger.warning(
+                "[company_profile] finished stock_code=%s market=%s provider=%s status=%s duration_ms=%s error=%s",
+                stock_code,
+                market,
+                provider,
+                status,
+                cost_ms,
+                err,
+            )
+        else:
+            logger.info(
+                "[company_profile] finished stock_code=%s market=%s provider=%s status=%s duration_ms=%s fields=%s",
+                stock_code,
+                market,
+                provider,
+                status,
+                cost_ms,
+                sorted(payload.keys()),
+            )
+        return self._build_fundamental_block(
+            status,
+            payload,
+            source_chain,
+            errors,
+        )
+
     def build_failed_fundamental_context(self, stock_code: str, reason: str) -> Dict[str, Any]:
         """Build a consistent failed-context payload for caller-side fallback."""
         market = _market_tag(stock_code)
         block_names = (
+            "company_profile",
             "valuation",
             "growth",
             "earnings",
@@ -1983,10 +2344,18 @@ class DataFetcherManager:
         market = _market_tag(stock_code)
         is_etf = _is_etf_code(stock_code)
         if market in {"us", "hk"}:
-            return self._build_market_not_supported(
+            unsupported_ctx = self._build_market_not_supported(
                 market=market,
                 reason="market not supported",
             )
+            profile_block = self.get_company_profile_context(stock_code, budget_seconds=budget_seconds)
+            unsupported_ctx["company_profile"] = profile_block
+            unsupported_ctx["coverage"]["company_profile"] = profile_block.get("status", "not_supported")
+            unsupported_ctx["source_chain"].extend(profile_block.get("source_chain", []))
+            unsupported_ctx["errors"].extend(profile_block.get("errors", []))
+            if self._has_meaningful_payload(profile_block.get("data")):
+                unsupported_ctx["status"] = "partial"
+            return unsupported_ctx
 
         stage_timeout = float(
             budget_seconds if budget_seconds is not None else config.fundamental_stage_timeout_seconds
@@ -2010,6 +2379,7 @@ class DataFetcherManager:
         remaining_seconds = stage_timeout
         result_ctx: Dict[str, Any] = {
             "market": market,
+            "company_profile": {},
             "valuation": {},
             "growth": {},
             "earnings": {},
@@ -2027,6 +2397,25 @@ class DataFetcherManager:
         def _consume_budget(consumed_ms: int) -> None:
             nonlocal remaining_seconds
             remaining_seconds = max(0.0, remaining_seconds - consumed_ms / 1000.0)
+
+        profile_timeout = min(fetch_timeout, remaining_seconds)
+        if profile_timeout > 0:
+            result_ctx["company_profile"] = self.get_company_profile_context(
+                stock_code,
+                budget_seconds=profile_timeout,
+            )
+            _consume_budget(int(sum(
+                item.get("duration_ms", 0)
+                for item in result_ctx["company_profile"].get("source_chain", [])
+                if isinstance(item, dict)
+            )))
+        else:
+            result_ctx["company_profile"] = self._build_fundamental_block(
+                "failed",
+                {},
+                [{"provider": "company_profile", "result": "failed", "duration_ms": 0}],
+                ["fundamental stage timeout"],
+            )
 
         valuation_timeout = min(fetch_timeout, remaining_seconds)
         if valuation_timeout > 0:
@@ -2198,6 +2587,13 @@ class DataFetcherManager:
                 [{"provider": "fundamental_pipeline", "result": "not_supported", "duration_ms": 0}],
                 ["etf not fully supported"],
             )
+            if not result_ctx.get("company_profile"):
+                result_ctx["company_profile"] = self._build_fundamental_block(
+                    "not_supported",
+                    {},
+                    [{"provider": "fundamental_pipeline", "result": "not_supported", "duration_ms": 0}],
+                    ["etf not fully supported"],
+                )
             result_ctx["status"] = "partial"
         else:
             capital_flow_budget = min(fetch_timeout, remaining_seconds)
@@ -2222,6 +2618,7 @@ class DataFetcherManager:
             )
 
         block_statuses = {
+            "company_profile": result_ctx["company_profile"].get("status", "not_supported"),
             "valuation": result_ctx["valuation"].get("status", "not_supported"),
             "growth": result_ctx["growth"].get("status", "not_supported"),
             "earnings": result_ctx["earnings"].get("status", "not_supported"),
@@ -2232,6 +2629,7 @@ class DataFetcherManager:
         }
         result_ctx["coverage"] = block_statuses
         for block in (
+            "company_profile",
             "valuation",
             "growth",
             "earnings",

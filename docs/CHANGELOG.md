@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [改进] 首页分析报告新增公司基本信息区，后端 best-effort 透出公司全称、行业、上市日期、股本、员工规模和官网。
+- [改进] 公司基本信息链路新增后端调试日志和本地诊断脚本，便于核对 companyProfile 数据源返回与 API 提取结果。
+- [改进] A 股公司基本信息主源改用 AkShare `stock_profile_cninfo` 巨潮资讯公司概况接口。
+- [改进] 首页基本信息新增公司基本介绍与核心管理层展示，透出法定代表人、实际控制人及控股比例。
+- [改进] 公司基本信息字段来源调整为 A 股股本取自 AkShare `stock_value_em`，港股员工人数和公司介绍取自 `stock_hk_company_profile_em`。
+- [修复] 修复管理后台系统设置未切换到对应 tab 时直接保存会把未挂载配置项误提交为空值的问题。
 - [改进] C 端 Agent 模型分配下拉框改用 HeroUI Select，与设置页其他字段控件保持一致。
 - [改进] 管理后台平台系统设置新增 Agent 模型分配下拉选择，平台可为未获个人设置权限的用户维护 technical/intel/risk/decision 默认模型。
 - [改进] 多 Agent 执行日志新增每个 Agent 的计划尝试模型、是否使用模型覆盖、实际使用模型、Token 与耗时，便于核对 Agent 模型分配是否生效。

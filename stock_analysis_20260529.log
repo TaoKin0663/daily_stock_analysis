@@ -166,3 +166,719 @@
 2026-05-29 11:33:13 | INFO     | src\services\credit_service.py:126 | Credits added: user=2 amount=1000 operator=2 reason=daily_claim
 2026-05-29 11:33:13 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53899 - "POST /api/v1/payment/claim HTTP/1.1" 200
 2026-05-29 11:33:13 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53899 - "GET /api/v1/payment/history HTTP/1.1" 200
+2026-05-29 13:33:29 | INFO     | main.py:801 | 
+用户中断，程序退出
+2026-05-29 14:25:48 | INFO     | src\logging_config.py:153 | 日志系统初始化完成，日志目录: .
+2026-05-29 14:25:48 | INFO     | src\logging_config.py:154 | 常规日志: stock_analysis_20260529.log
+2026-05-29 14:25:48 | INFO     | src\logging_config.py:155 | 调试日志: stock_analysis_debug_20260529.log
+2026-05-29 14:25:48 | INFO     | main.py:741 | ============================================================
+2026-05-29 14:25:48 | INFO     | main.py:742 | A股自选股智能分析系统 启动
+2026-05-29 14:25:48 | INFO     | main.py:743 | 运行时间: 2026-05-29 14:25:48
+2026-05-29 14:25:48 | INFO     | main.py:744 | ============================================================
+2026-05-29 14:25:48 | INFO     | src\webui_frontend.py:199 | 检测到可直接复用的前端静态产物，跳过运行时自动构建: E:\development\outlets\daily_stock_analysis\static\index.html
+2026-05-29 14:25:49 | INFO     | main.py:621 | FastAPI 服务已启动: http://0.0.0.0:8000
+2026-05-29 14:25:49 | INFO     | main.py:792 | 模式: 仅 Web 服务
+2026-05-29 14:25:49 | INFO     | main.py:793 | Web 服务运行中: http://0.0.0.0:8000
+2026-05-29 14:25:49 | INFO     | main.py:794 | 通过 /api/v1/analysis/analyze 接口触发分析
+2026-05-29 14:25:49 | INFO     | main.py:795 | API 文档: http://0.0.0.0:8000/docs
+2026-05-29 14:25:49 | INFO     | main.py:796 | 按 Ctrl+C 退出...
+2026-05-29 14:25:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\server.py:92 | Started server process [11196]
+2026-05-29 14:25:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\lifespan\on.py:48 | Waiting for application startup.
+2026-05-29 14:25:50 | INFO     | src\storage.py:914 | 数据库初始化完成: postgresql+psycopg://dsa:dsa123@localhost:5435/daily_stock_analysis
+2026-05-29 14:25:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\lifespan\on.py:62 | Application startup complete.
+2026-05-29 14:25:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\server.py:224 | Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-05-29 14:26:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56374 - "GET / HTTP/1.1" 200
+2026-05-29 14:26:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56374 - "GET /assets/index-ny8EmgJR.js HTTP/1.1" 200
+2026-05-29 14:26:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56374 - "GET /assets/index-Bur2b3YL.css HTTP/1.1" 200
+2026-05-29 14:26:17 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56374 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 14:26:17 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56378 - "GET /stocks.index.json?_t=494454 HTTP/1.1" 200
+2026-05-29 14:26:17 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56377 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 14:26:17 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56374 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 14:26:17 | INFO     | src\services\task_queue.py:178 | [TaskQueue] 初始化完成，最大并发: 3
+2026-05-29 14:26:17 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 14:26:17 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 14:26:17 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'multi', 'single'}
+2026-05-29 14:26:17 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'full', 'standard', 'quick', 'specialist'}
+2026-05-29 14:26:17 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56374 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 14:26:17 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56377 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:26:17 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56377 - "GET /api/v1/history/5 HTTP/1.1" 200
+2026-05-29 14:26:17 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56378 - "GET /api/v1/history/5/news?limit=8 HTTP/1.1" 200
+2026-05-29 14:26:18 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56378 - "GET /vite.svg HTTP/1.1" 200
+2026-05-29 14:26:47 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56384 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:26:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56384 - "GET /api/v1/history/5/news?limit=8 HTTP/1.1" 200
+2026-05-29 14:26:51 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56384 - "GET /api/v1/history/5/news?limit=8 HTTP/1.1" 200
+2026-05-29 14:27:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56480 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 14:27:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56481 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 14:27:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56482 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 14:27:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56483 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 14:27:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56484 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 14:27:06 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56491 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:27:06 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56495 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:27:07 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 14:27:07 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 14:27:07 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'multi', 'single'}
+2026-05-29 14:27:07 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'full', 'standard', 'quick', 'specialist'}
+2026-05-29 14:27:07 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56497 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:27:07 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56501 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:27:17 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56385 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:27:21 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56523 - "PUT /api/v1/system/config HTTP/1.1" 409
+2026-05-29 14:27:23 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56530 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:27:28 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56538 - "POST /api/v1/auth/logout HTTP/1.1" 204
+2026-05-29 14:27:28 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56543 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 14:27:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56548 - "POST /api/v1/auth/login HTTP/1.1" 200
+2026-05-29 14:27:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56555 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 14:27:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56561 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 14:27:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56566 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 14:27:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56567 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 14:27:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56568 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 14:27:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56571 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:27:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56574 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:27:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56576 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:27:33 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56580 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:27:45 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56599 - "PUT /api/v1/system/config HTTP/1.1" 409
+2026-05-29 14:27:48 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56604 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:28:18 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56659 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:28:48 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56713 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:29:18 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56764 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:29:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:56878 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:30:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57160 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:31:41 | INFO     | main.py:801 | 
+用户中断，程序退出
+2026-05-29 14:31:46 | INFO     | src\logging_config.py:153 | 日志系统初始化完成，日志目录: .
+2026-05-29 14:31:46 | INFO     | src\logging_config.py:154 | 常规日志: stock_analysis_20260529.log
+2026-05-29 14:31:46 | INFO     | src\logging_config.py:155 | 调试日志: stock_analysis_debug_20260529.log
+2026-05-29 14:31:46 | INFO     | main.py:741 | ============================================================
+2026-05-29 14:31:46 | INFO     | main.py:742 | A股自选股智能分析系统 启动
+2026-05-29 14:31:46 | INFO     | main.py:743 | 运行时间: 2026-05-29 14:31:46
+2026-05-29 14:31:46 | INFO     | main.py:744 | ============================================================
+2026-05-29 14:31:46 | INFO     | src\webui_frontend.py:199 | 检测到可直接复用的前端静态产物，跳过运行时自动构建: E:\development\outlets\daily_stock_analysis\static\index.html
+2026-05-29 14:31:46 | INFO     | main.py:621 | FastAPI 服务已启动: http://0.0.0.0:8000
+2026-05-29 14:31:46 | INFO     | main.py:792 | 模式: 仅 Web 服务
+2026-05-29 14:31:46 | INFO     | main.py:793 | Web 服务运行中: http://0.0.0.0:8000
+2026-05-29 14:31:46 | INFO     | main.py:794 | 通过 /api/v1/analysis/analyze 接口触发分析
+2026-05-29 14:31:46 | INFO     | main.py:795 | API 文档: http://0.0.0.0:8000/docs
+2026-05-29 14:31:46 | INFO     | main.py:796 | 按 Ctrl+C 退出...
+2026-05-29 14:31:47 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\server.py:92 | Started server process [9500]
+2026-05-29 14:31:47 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\lifespan\on.py:48 | Waiting for application startup.
+2026-05-29 14:31:47 | INFO     | src\storage.py:914 | 数据库初始化完成: postgresql+psycopg://dsa:dsa123@localhost:5435/daily_stock_analysis
+2026-05-29 14:31:47 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\lifespan\on.py:62 | Application startup complete.
+2026-05-29 14:31:47 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\server.py:224 | Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-05-29 14:31:50 | INFO     | src\services\task_queue.py:178 | [TaskQueue] 初始化完成，最大并发: 3
+2026-05-29 14:31:50 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 14:31:50 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 14:31:50 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'multi', 'single'}
+2026-05-29 14:31:50 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'quick', 'standard', 'full', 'specialist'}
+2026-05-29 14:31:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57250 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 14:31:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57304 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:31:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57312 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 14:31:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57321 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 14:31:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57320 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 14:31:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57322 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 14:31:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57323 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 14:31:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57325 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:31:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57304 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:31:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57329 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:31:56 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 14:31:56 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 14:31:56 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'multi', 'single'}
+2026-05-29 14:31:56 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'quick', 'standard', 'full', 'specialist'}
+2026-05-29 14:31:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57332 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:31:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57336 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:31:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57304 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 14:31:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57304 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 14:31:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57304 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 14:31:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57304 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:31:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57304 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 14:31:58 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57345 - "GET /api/v1/history/5 HTTP/1.1" 200
+2026-05-29 14:31:58 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57345 - "GET /api/v1/history/5/news?limit=8 HTTP/1.1" 200
+2026-05-29 14:32:15 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 14:32:15 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'multi', 'single'}
+2026-05-29 14:32:15 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'quick', 'standard', 'full', 'specialist'}
+2026-05-29 14:32:15 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57408 - "PUT /api/v1/system/config HTTP/1.1" 200
+2026-05-29 14:32:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57412 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:32:16 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 14:32:16 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'multi', 'single'}
+2026-05-29 14:32:16 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'quick', 'standard', 'full', 'specialist'}
+2026-05-29 14:32:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57417 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:32:28 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57346 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:32:59 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57508 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:33:29 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57560 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:33:59 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57614 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:34:29 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57677 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:34:59 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57717 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:35:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57795 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:36:38 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57871 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 14:36:38 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57873 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 14:36:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57872 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 14:36:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57874 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 14:36:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57875 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 14:36:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57876 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:36:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57879 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:36:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57884 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:36:40 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57887 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:36:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57924 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:36:59 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57924 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:36:59 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57924 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:36:59 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57924 - "GET / HTTP/1.1" 200
+2026-05-29 14:37:00 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57924 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 14:37:00 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57944 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 14:37:00 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57924 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 14:37:00 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57944 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:37:00 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 14:37:00 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'multi', 'single'}
+2026-05-29 14:37:00 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'quick', 'standard', 'full', 'specialist'}
+2026-05-29 14:37:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57924 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 14:37:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57944 - "GET /api/v1/history/5 HTTP/1.1" 200
+2026-05-29 14:37:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57944 - "GET /api/v1/history/5/news?limit=8 HTTP/1.1" 200
+2026-05-29 14:37:30 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57956 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:37:33 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57957 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 14:37:33 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57956 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 14:37:33 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57957 - "GET /api/v1/payment/history HTTP/1.1" 200
+2026-05-29 14:37:33 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57957 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:37:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58069 - "PUT /api/v1/admin/roles/2 HTTP/1.1" 200
+2026-05-29 14:37:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58072 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 14:37:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58078 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 14:37:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58083 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 14:37:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58084 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 14:37:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58085 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 14:38:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58014 - "GET /settings HTTP/1.1" 200
+2026-05-29 14:38:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58014 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 14:38:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58014 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 14:38:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58014 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 14:38:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58014 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:38:03 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58014 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:38:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58098 - "POST /api/v1/system/config/validate HTTP/1.1" 200
+2026-05-29 14:38:32 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 14:38:32 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'multi', 'single'}
+2026-05-29 14:38:32 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'quick', 'standard', 'full', 'specialist'}
+2026-05-29 14:38:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58098 - "PUT /api/v1/system/config HTTP/1.1" 200
+2026-05-29 14:38:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58098 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:38:35 | INFO     | src\agent\skills\base.py:360 | Loaded 11 built-in skills from E:\development\outlets\daily_stock_analysis\strategies
+2026-05-29 14:38:35 | INFO     | src\agent\factory.py:213 | [AgentFactory] SkillManager prototype cached (11 skills)
+2026-05-29 14:38:35 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58098 - "GET /api/v1/agent/chat/sessions?limit=50 HTTP/1.1" 200
+2026-05-29 14:38:35 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58100 - "GET /api/v1/agent/skills HTTP/1.1" 200
+2026-05-29 14:38:38 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58098 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 14:38:38 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58100 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:38:38 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58100 - "GET /api/v1/history/5 HTTP/1.1" 200
+2026-05-29 14:38:38 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58100 - "GET /api/v1/history/5/news?limit=8 HTTP/1.1" 200
+2026-05-29 14:38:46 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58266 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:38:50 | INFO     | src\services\task_queue.py:413 | [TaskQueue] 任务已提交: 605133.SH -> fa636a8ffaac40b5a78d899e31162c77
+2026-05-29 14:38:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58266 - "POST /api/v1/analysis/analyze HTTP/1.1" 202
+2026-05-29 14:38:52 | WARNING  | data_provider\tushare_fetcher.py:164 | Tushare Token 未配置，此数据源不可用
+2026-05-29 14:38:52 | INFO     | data_provider\base.py:893 | 已初始化 7 个数据源（按优先级）: EfinanceFetcher(P0), AkshareFetcher(P1), TushareFetcher(P2), PytdxFetcher(P2), BaostockFetcher(P3), YfinanceFetcher(P4), LongbridgeFetcher(P5)
+2026-05-29 14:38:52 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\litellm\router.py:784 | Routing strategy: simple-shuffle
+2026-05-29 14:38:52 | INFO     | src\analyzer.py:956 | Analyzer LLM: Router initialized from channels/YAML — 3 deployment(s), models: ['openai/gpt-5.4-nano', 'openai/deepseek-v3.2', 'openai/qwen3-max-2026-01-23']
+2026-05-29 14:38:52 | INFO     | src\notification.py:173 | 已配置 1 个通知渠道：邮件
+2026-05-29 14:38:52 | INFO     | src\search_service.py:2202 | 已启用 SearXNG 公共实例自动发现模式
+2026-05-29 14:38:52 | INFO     | src\search_service.py:2218 | 新闻时效策略已启用: profile=short, profile_days=3, NEWS_MAX_AGE_DAYS=3, effective_window=3
+2026-05-29 14:38:52 | INFO     | src\core\pipeline.py:123 | 调度器初始化完成，最大并发数: 3
+2026-05-29 14:38:52 | INFO     | src\core\pipeline.py:124 | 已启用技术分析引擎（均线/趋势/量价指标）
+2026-05-29 14:38:52 | INFO     | src\core\pipeline.py:129 | 实时行情已禁用，将使用历史收盘价
+2026-05-29 14:38:52 | INFO     | src\core\pipeline.py:133 | 筹码分布分析已禁用
+2026-05-29 14:38:52 | INFO     | src\core\pipeline.py:137 | 搜索服务已启用
+2026-05-29 14:38:52 | INFO     | src\core\pipeline.py:1208 | ========== 开始处理 605133.SH ==========
+2026-05-29 14:38:53 | INFO     | src\core\pipeline.py:218 | 嵘泰股份(605133.SH) 开始从数据源获取数据...
+2026-05-29 14:38:53 | INFO     | data_provider\base.py:1001 | [数据源尝试 1/7] [EfinanceFetcher] 获取 605133...
+2026-05-29 14:38:53 | INFO     | data_provider\base.py:364 | [EfinanceFetcher] 开始获取 605133 日线数据: 范围=2026-03-30 ~ 2026-05-29
+2026-05-29 14:38:54 | INFO     | data_provider\efinance_fetcher.py:389 | [API调用] ef.stock.get_quote_history(stock_codes=605133, beg=20260330, end=20260529, klt=101, fqt=1)
+2026-05-29 14:38:54 | WARNING  | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\urllib3\connectionpool.py:868 | Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/stock/kline/get?fields1=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf11%2Cf12%2Cf13&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61&beg=20260330&end=20260529&rtntype=6&secid=1.605133&klt=101&fqt=1
+2026-05-29 14:38:55 | WARNING  | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\urllib3\connectionpool.py:868 | Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/stock/kline/get?fields1=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf11%2Cf12%2Cf13&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61&beg=20260330&end=20260529&rtntype=6&secid=1.605133&klt=101&fqt=1
+2026-05-29 14:38:55 | WARNING  | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\urllib3\connectionpool.py:868 | Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/stock/kline/get?fields1=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf11%2Cf12%2Cf13&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61&beg=20260330&end=20260529&rtntype=6&secid=1.605133&klt=101&fqt=1
+2026-05-29 14:38:55 | WARNING  | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\urllib3\connectionpool.py:868 | Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/stock/kline/get?fields1=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf11%2Cf12%2Cf13&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61&beg=20260330&end=20260529&rtntype=6&secid=1.605133&klt=101&fqt=1
+2026-05-29 14:38:55 | WARNING  | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\urllib3\connectionpool.py:868 | Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/stock/kline/get?fields1=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf11%2Cf12%2Cf13&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61&beg=20260330&end=20260529&rtntype=6&secid=1.605133&klt=101&fqt=1
+2026-05-29 14:38:55 | ERROR    | data_provider\efinance_fetcher.py:443 | Eastmoney 历史K线接口失败: endpoint=push2his.eastmoney.com/api/qt/stock/kline/get, stock_code=605133, market_type=stock, range=20260330~20260529, category=remote_disconnect, error_type=ProxyError, elapsed=0.72s, detail=HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/stock/kline/get?fields1=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf11%2Cf12%2Cf13&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61&beg=20260330&end=20260529&rtntype=6&secid=1.605133&klt=101&fqt=1 (Caused by ProxyError('Unable to connect to proxy', RemoteDisconnected('Remote end closed connection without response')))
+2026-05-29 14:38:55 | ERROR    | data_provider\base.py:392 | [EfinanceFetcher] 605133 获取失败: 范围=2026-03-30 ~ 2026-05-29, error_type=RemoteDisconnected, elapsed=2.35s, reason=efinance 获取数据失败: Eastmoney 历史K线接口失败: endpoint=push2his.eastmoney.com/api/qt/stock/kline/get, stock_code=605133, market_type=stock, range=20260330~20260529, category=remote_disconnect, error_type=ProxyError, elapsed=0.72s, detail=HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/stock/kline/get?fields1=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf11%2Cf12%2Cf13&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61&beg=20260330&end=20260529&rtntype=6&secid=1.605133&klt=101&fqt=1 (Caused by ProxyError('Unable to connect to proxy', RemoteDisconnected('Remote end closed connection without response')))
+2026-05-29 14:38:55 | WARNING  | data_provider\base.py:1022 | [数据源失败 1/7] [EfinanceFetcher] 605133: error_type=RemoteDisconnected, reason=[EfinanceFetcher] 605133: efinance 获取数据失败: Eastmoney 历史K线接口失败: endpoint=push2his.eastmoney.com/api/qt/stock/kline/get, stock_code=605133, market_type=stock, range=20260330~20260529, category=remote_disconnect, error_type=ProxyError, elapsed=0.72s, detail=HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/stock/kline/get?fields1=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf11%2Cf12%2Cf13&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61&beg=20260330&end=20260529&rtntype=6&secid=1.605133&klt=101&fqt=1 (Caused by ProxyError('Unable to connect to proxy', RemoteDisconnected('Remote end closed connection without response')))
+2026-05-29 14:38:55 | INFO     | data_provider\base.py:1029 | [数据源切换] 605133: [EfinanceFetcher] -> [AkshareFetcher]
+2026-05-29 14:38:55 | INFO     | data_provider\base.py:1001 | [数据源尝试 2/7] [AkshareFetcher] 获取 605133...
+2026-05-29 14:38:55 | INFO     | data_provider\base.py:364 | [AkshareFetcher] 开始获取 605133 日线数据: 范围=2026-03-30 ~ 2026-05-29
+2026-05-29 14:38:55 | INFO     | data_provider\akshare_fetcher.py:379 | [数据源] 尝试使用 东方财富 获取 605133...
+2026-05-29 14:38:59 | INFO     | data_provider\akshare_fetcher.py:406 | [API调用] ak.stock_zh_a_hist(symbol=605133, ...)
+2026-05-29 14:38:59 | WARNING  | data_provider\akshare_fetcher.py:387 | [数据源] 东方财富 获取失败: HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/stock/kline/get?fields1=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61%2Cf116&ut=7eea3edcaed734bea9cbfc24409ed989&klt=101&fqt=1&secid=1.605133&beg=20260330&end=20260529 (Caused by ProxyError('Unable to connect to proxy', RemoteDisconnected('Remote end closed connection without response')))
+2026-05-29 14:38:59 | INFO     | data_provider\akshare_fetcher.py:379 | [数据源] 尝试使用 新浪财经 获取 605133...
+2026-05-29 14:39:06 | INFO     | data_provider\akshare_fetcher.py:383 | [数据源] 新浪财经 获取成功
+2026-05-29 14:39:06 | INFO     | data_provider\base.py:383 | [AkshareFetcher] 605133 获取成功: 范围=2026-03-30 ~ 2026-05-29, rows=40, elapsed=10.76s
+2026-05-29 14:39:06 | INFO     | data_provider\base.py:1013 | [数据源完成] 605133 使用 [AkshareFetcher] 获取成功: rows=40, elapsed=13.11s
+2026-05-29 14:39:06 | INFO     | src\storage.py:2724 | 保存 605133.SH 数据成功，新增 40 条
+2026-05-29 14:39:06 | INFO     | src\core\pipeline.py:226 | 嵘泰股份(605133.SH) 数据保存成功（来源: AkshareFetcher，新增 40 条）
+2026-05-29 14:39:06 | INFO     | src\core\pipeline.py:279 | 嵘泰股份(605133.SH) 实时行情已禁用，使用历史收盘价继续分析
+2026-05-29 14:39:06 | INFO     | src\core\pipeline.py:357 | 嵘泰股份(605133.SH) 趋势分析: 弱势空头, 买入信号=持有, 评分=52
+2026-05-29 14:39:06 | INFO     | src\core\pipeline.py:380 | 嵘泰股份(605133.SH) 开始多维度情报搜索...
+2026-05-29 14:39:06 | INFO     | src\search_service.py:3093 | 开始多维度情报搜索: 嵘泰股份(605133.SH), 时间范围: 近3天 (profile=short, NEWS_MAX_AGE_DAYS=3), 目标条数=3, provider请求条数=6
+2026-05-29 14:39:06 | INFO     | src\search_service.py:3122 | [情报搜索] 最新消息: 使用 SearXNG
+2026-05-29 14:39:08 | INFO     | src\search_service.py:1841 | [SearXNG] 已刷新公共实例池，共 20 个候选实例
+2026-05-29 14:39:08 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://search.rhscz.eu 搜索失败: Too Many Requests
+2026-05-29 14:39:08 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:58334 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:39:09 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://search.hbubli.cc 搜索失败: 响应JSON解析失败
+2026-05-29 14:39:10 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searx.tiekoetter.com 搜索失败: Too Many Requests
+2026-05-29 14:39:10 | WARNING  | src\search_service.py:3160 | [情报搜索] 最新消息: 搜索失败 - https://search.rhscz.eu: Too Many Requests；https://search.hbubli.cc: 响应JSON解析失败；https://searx.tiekoetter.com: Too Many Requests
+2026-05-29 14:39:11 | INFO     | src\search_service.py:3122 | [情报搜索] 机构分析: 使用 SearXNG
+2026-05-29 14:39:11 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://search.hbubli.cc 搜索失败: 响应JSON解析失败
+2026-05-29 14:39:12 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searx.tiekoetter.com 搜索失败: Too Many Requests
+2026-05-29 14:39:14 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searx.rhscz.eu 搜索失败: Too Many Requests
+2026-05-29 14:39:14 | WARNING  | src\search_service.py:3160 | [情报搜索] 机构分析: 搜索失败 - https://search.hbubli.cc: 响应JSON解析失败；https://searx.tiekoetter.com: Too Many Requests；https://searx.rhscz.eu: Too Many Requests
+2026-05-29 14:39:14 | INFO     | src\search_service.py:3122 | [情报搜索] 风险排查: 使用 SearXNG
+2026-05-29 14:39:15 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searx.tiekoetter.com 搜索失败: Too Many Requests
+2026-05-29 14:39:16 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searx.rhscz.eu 搜索失败: Too Many Requests
+2026-05-29 14:39:18 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searxng.website 搜索失败: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>403 Forbidden</title>
+</head><body>
+<h1>Forbidden</h1>
+<p>You don't have permission to access this resource.</p>
+<hr>
+<address>Ap；SearXNG 实例可能未启用 JSON 输出（请检查 settings.yml），或实例/代理拒绝了本次访问
+2026-05-29 14:39:18 | WARNING  | src\search_service.py:3160 | [情报搜索] 风险排查: 搜索失败 - https://searx.tiekoetter.com: Too Many Requests；https://searx.rhscz.eu: Too Many Requests；https://searxng.website: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>403 Forbidden</title>
+</head><body>
+<h1>Forbidden</h1>
+<p>You don't have permission to access this resource.</p>
+<hr>
+<address>Ap；SearXNG 实例可能未启用 JSON 输出（请检查 settings.yml），或实例/代理拒绝了本次访问
+2026-05-29 14:39:18 | INFO     | src\search_service.py:3122 | [情报搜索] 公司公告: 使用 SearXNG
+2026-05-29 14:39:19 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searx.rhscz.eu 搜索失败: Too Many Requests
+2026-05-29 14:39:20 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searxng.website 搜索失败: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>403 Forbidden</title>
+</head><body>
+<h1>Forbidden</h1>
+<p>You don't have permission to access this resource.</p>
+<hr>
+<address>Ap；SearXNG 实例可能未启用 JSON 输出（请检查 settings.yml），或实例/代理拒绝了本次访问
+2026-05-29 14:39:22 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searxng.site 搜索失败: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>403 Forbidden</title>
+</head><body>
+<h1>Forbidden</h1>
+<p>You don't have permission to access this resource.</p>
+<hr>
+<address>Ap；SearXNG 实例可能未启用 JSON 输出（请检查 settings.yml），或实例/代理拒绝了本次访问
+2026-05-29 14:39:22 | WARNING  | src\search_service.py:3160 | [情报搜索] 公司公告: 搜索失败 - https://searx.rhscz.eu: Too Many Requests；https://searxng.website: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>403 Forbidden</title>
+</head><body>
+<h1>Forbidden</h1>
+<p>You don't have permission to access this resource.</p>
+<hr>
+<address>Ap；SearXNG 实例可能未启用 JSON 输出（请检查 settings.yml），或实例/代理拒绝了本次访问；https://searxng.site: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>403 Forbidden</title>
+</head><body>
+<h1>Forbidden</h1>
+<p>You don't have permission to access this resource.</p>
+<hr>
+<address>Ap；SearXNG 实例可能未启用 JSON 输出（请检查 settings.yml），或实例/代理拒绝了本次访问
+2026-05-29 14:39:22 | INFO     | src\search_service.py:3122 | [情报搜索] 业绩预期: 使用 SearXNG
+2026-05-29 14:39:23 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searxng.website 搜索失败: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>403 Forbidden</title>
+</head><body>
+<h1>Forbidden</h1>
+<p>You don't have permission to access this resource.</p>
+<hr>
+<address>Ap；SearXNG 实例可能未启用 JSON 输出（请检查 settings.yml），或实例/代理拒绝了本次访问
+2026-05-29 14:39:24 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://searxng.site 搜索失败: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>403 Forbidden</title>
+</head><body>
+<h1>Forbidden</h1>
+<p>You don't have permission to access this resource.</p>
+<hr>
+<address>Ap；SearXNG 实例可能未启用 JSON 输出（请检查 settings.yml），或实例/代理拒绝了本次访问
+2026-05-29 14:39:25 | WARNING  | src\search_service.py:2072 | [SearXNG] 实例 https://search.privacyredirect.com 搜索失败: 响应JSON解析失败
+2026-05-29 14:39:25 | WARNING  | src\search_service.py:3160 | [情报搜索] 业绩预期: 搜索失败 - https://searxng.website: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>403 Forbidden</title>
+</head><body>
+<h1>Forbidden</h1>
+<p>You don't have permission to access this resource.</p>
+<hr>
+<address>Ap；SearXNG 实例可能未启用 JSON 输出（请检查 settings.yml），或实例/代理拒绝了本次访问；https://searxng.site: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>403 Forbidden</title>
+</head><body>
+<h1>Forbidden</h1>
+<p>You don't have permission to access this resource.</p>
+<hr>
+<address>Ap；SearXNG 实例可能未启用 JSON 输出（请检查 settings.yml），或实例/代理拒绝了本次访问；https://search.privacyredirect.com: 响应JSON解析失败
+2026-05-29 14:39:25 | INFO     | src\core\pipeline.py:395 | 嵘泰股份(605133.SH) 情报搜索完成: 共 0 条结果
+2026-05-29 14:39:25 | INFO     | src\agent\skills\base.py:431 | Activated skills: ['bull_trend']
+2026-05-29 14:39:25 | INFO     | src\agent\factory.py:257 | [AgentFactory] Activated skills: ['bull_trend']
+2026-05-29 14:39:27 | INFO     | src\analyzer.py:1344 | ========== AI 分析 嵘泰股份(605133.SH) ==========
+2026-05-29 14:39:27 | INFO     | src\analyzer.py:1345 | [LLM配置] 模型: openai/gpt-5.4-nano
+2026-05-29 14:39:27 | INFO     | src\analyzer.py:1346 | [LLM配置] Prompt 长度: 2456 字符
+2026-05-29 14:39:27 | INFO     | src\analyzer.py:1347 | [LLM配置] 是否包含新闻: 是
+2026-05-29 14:39:27 | INFO     | src\analyzer.py:1351 | [LLM Prompt 预览]
+# 决策仪表盘分析请求
+
+## 📊 股票基础信息
+| 项目 | 数据 |
+|------|------|
+| 股票代码 | **605133.SH** |
+| 股票名称 | **嵘泰股份** |
+| 分析日期 | 2026-05-28 |
+
+---
+
+## 📈 技术面数据
+
+### 今日行情
+| 指标 | 数值 |
+|------|------|
+| 收盘价 | 38.39 元 |
+| 开盘价 | 38.27 元 |
+| 最高价 | 38.8 元 |
+| 最低价 | 37.8 元 |
+| 涨跌幅 | -0.05206977349647701% |
+| 成交量 | 735.14 万股 |
+| 成交额 | 2.82 亿元 |
+
+### 均线系统（关键判断指标）
+| 均线 | 数值 | 说明 |
+|------|------|------|
+| MA5 | 39.58 | 短期趋势线 |
+| MA10 | 39.97 | 中短期趋势线 |
+| MA20 | 38.01 | 中期趋势线 |
+| 均线形态 | 短期走弱 🔽 | 多头/空头/缠绕 |
+
+### 财报与分红（价值投资口径）
+| 指标...
+2026-05-29 14:39:27 | INFO     | src\analyzer.py:1360 | [LLM调用] 开始调用 openai/gpt-5.4-nano...
+2026-05-29 14:39:27 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\litellm\utils.py:3995 | 
+LiteLLM completion() model= gpt-5.4-nano; provider = openai
+2026-05-29 14:39:29 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\litellm\router.py:1515 | litellm.completion(model=openai/gpt-5.4-nano)[32m 200 OK[0m
+2026-05-29 14:39:38 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:59889 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:39:52 | INFO     | src\analyzer.py:1380 | [LLM返回] openai/gpt-5.4-nano 响应成功, 耗时 24.54s, 响应长度 3958 字符
+2026-05-29 14:39:52 | INFO     | src\analyzer.py:1384 | [LLM返回 预览]
+```json
+{
+  "stock_name": "嵘泰股份（605133）",
+  "sentiment_score": 52,
+  "trend_prediction": "震荡",
+  "operation_advice": "观望",
+  "decision_type": "hold",
+  "confidence_level": "中",
+
+  "dashboard": {
+    "core_conclusion": {
+      "one_sentence": "回踩MA5乖离不大但均线仍弱，等待MA5回升再跟。",
+      "signal_type": "🟡持有观望",...
+2026-05-29 14:39:52 | INFO     | src\analyzer.py:1434 | [LLM解析] 嵘泰股份(605133.SH) 分析完成: 震荡, 评分 52
+2026-05-29 14:39:52 | INFO     | src\core\pipeline.py:1232 | [605133.SH] 分析完成: 观望, 评分 52
+2026-05-29 14:39:52 | INFO     | src\core\pipeline.py:1446 | [605133.SH] 使用完整报告格式
+2026-05-29 14:39:52 | INFO     | src\notification.py:1623 | 正在向 1 个渠道发送通知：邮件
+2026-05-29 14:39:52 | INFO     | src\notification_sender\email_sender.py:190 | 自动识别邮箱类型: qq.com -> smtp.qq.com:465
+2026-05-29 14:39:52 | INFO     | src\notification_sender\email_sender.py:210 | 邮件发送成功，收件人: ['723197949@qq.com']
+2026-05-29 14:39:52 | INFO     | src\notification.py:1693 | 通知发送完成：成功 1 个，失败 0 个
+2026-05-29 14:39:52 | INFO     | src\core\pipeline.py:1455 | [605133.SH] 单股推送成功
+2026-05-29 14:39:53 | INFO     | src\services\task_queue.py:631 | [TaskQueue] 任务完成: fa636a8ffaac40b5a78d899e31162c77 (605133.SH)
+2026-05-29 14:39:53 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62498 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:40:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62530 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:40:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62582 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:40:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62582 - "GET /api/v1/history/6 HTTP/1.1" 200
+2026-05-29 14:40:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62582 - "GET /api/v1/history/6/news?limit=8 HTTP/1.1" 200
+2026-05-29 14:40:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62595 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:41:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62647 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:41:35 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62694 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:41:35 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62693 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 14:41:35 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62696 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:41:36 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62700 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 14:41:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62707 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:42:26 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62846 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:42:26 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62846 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 14:42:27 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62846 - "GET /api/v1/agent/skills HTTP/1.1" 200
+2026-05-29 14:46:46 | INFO     | main.py:801 | 
+用户中断，程序退出
+2026-05-29 15:12:51 | INFO     | src\logging_config.py:153 | 日志系统初始化完成，日志目录: .
+2026-05-29 15:12:51 | INFO     | src\logging_config.py:154 | 常规日志: stock_analysis_20260529.log
+2026-05-29 15:12:51 | INFO     | src\logging_config.py:155 | 调试日志: stock_analysis_debug_20260529.log
+2026-05-29 15:12:51 | INFO     | main.py:741 | ============================================================
+2026-05-29 15:12:51 | INFO     | main.py:742 | A股自选股智能分析系统 启动
+2026-05-29 15:12:51 | INFO     | main.py:743 | 运行时间: 2026-05-29 15:12:51
+2026-05-29 15:12:51 | INFO     | main.py:744 | ============================================================
+2026-05-29 15:12:51 | INFO     | src\webui_frontend.py:199 | 检测到可直接复用的前端静态产物，跳过运行时自动构建: E:\development\outlets\daily_stock_analysis\static\index.html
+2026-05-29 15:12:51 | INFO     | main.py:621 | FastAPI 服务已启动: http://0.0.0.0:8000
+2026-05-29 15:12:51 | INFO     | main.py:792 | 模式: 仅 Web 服务
+2026-05-29 15:12:51 | INFO     | main.py:793 | Web 服务运行中: http://0.0.0.0:8000
+2026-05-29 15:12:51 | INFO     | main.py:794 | 通过 /api/v1/analysis/analyze 接口触发分析
+2026-05-29 15:12:51 | INFO     | main.py:795 | API 文档: http://0.0.0.0:8000/docs
+2026-05-29 15:12:51 | INFO     | main.py:796 | 按 Ctrl+C 退出...
+2026-05-29 15:12:52 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\server.py:92 | Started server process [23116]
+2026-05-29 15:12:52 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\lifespan\on.py:48 | Waiting for application startup.
+2026-05-29 15:12:53 | INFO     | src\storage.py:914 | 数据库初始化完成: postgresql+psycopg://dsa:dsa123@localhost:5435/daily_stock_analysis
+2026-05-29 15:12:53 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\lifespan\on.py:62 | Application startup complete.
+2026-05-29 15:12:53 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\server.py:224 | Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-05-29 15:12:54 | INFO     | src\services\task_queue.py:178 | [TaskQueue] 初始化完成，最大并发: 3
+2026-05-29 15:12:54 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 15:12:54 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'multi', 'single'}
+2026-05-29 15:12:54 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'quick', 'full', 'standard', 'specialist'}
+2026-05-29 15:12:54 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50575 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 15:12:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50576 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 15:12:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50576 - "GET / HTTP/1.1" 200
+2026-05-29 15:12:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50576 - "GET /assets/index-ny8EmgJR.js HTTP/1.1" 304
+2026-05-29 15:12:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50576 - "GET /assets/index-Bur2b3YL.css HTTP/1.1" 304
+2026-05-29 15:12:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50576 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 15:12:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50591 - "GET /stocks.index.json?_t=494455 HTTP/1.1" 200
+2026-05-29 15:12:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50576 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 15:12:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50576 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 15:12:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50576 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 15:12:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50576 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 15:12:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50591 - "GET /api/v1/history/6 HTTP/1.1" 200
+2026-05-29 15:12:57 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50591 - "GET /api/v1/history/6/news?limit=8 HTTP/1.1" 200
+2026-05-29 15:12:58 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50591 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 15:12:59 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50611 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 15:12:59 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50615 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 15:12:59 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50614 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 15:13:00 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50618 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 15:13:00 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50619 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 15:13:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50591 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:13:23 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50669 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 15:13:23 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50670 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 15:13:23 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50671 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 15:13:23 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50672 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 15:13:23 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50673 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 15:13:26 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50682 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:13:26 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50687 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:13:26 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 15:13:26 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'multi', 'single'}
+2026-05-29 15:13:26 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'quick', 'full', 'standard', 'specialist'}
+2026-05-29 15:13:26 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50692 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:13:26 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50694 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:13:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50725 - "PUT /api/v1/admin/roles/2 HTTP/1.1" 200
+2026-05-29 15:13:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50728 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 15:13:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50734 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 15:13:40 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50739 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 15:13:40 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50740 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 15:13:40 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50741 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 15:13:43 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50747 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:13:43 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50750 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:13:43 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50754 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:13:44 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50758 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:13:58 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50782 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:13:58 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50787 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:13:58 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50792 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:13:59 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50796 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:14:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50819 - "GET /settings HTTP/1.1" 200
+2026-05-29 15:14:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50819 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 15:14:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50820 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 15:14:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50819 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 15:14:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50821 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:14:10 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50821 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:14:31 | INFO     | main.py:801 | 
+用户中断，程序退出
+2026-05-29 15:14:36 | INFO     | src\logging_config.py:153 | 日志系统初始化完成，日志目录: .
+2026-05-29 15:14:36 | INFO     | src\logging_config.py:154 | 常规日志: stock_analysis_20260529.log
+2026-05-29 15:14:36 | INFO     | src\logging_config.py:155 | 调试日志: stock_analysis_debug_20260529.log
+2026-05-29 15:14:36 | INFO     | main.py:741 | ============================================================
+2026-05-29 15:14:36 | INFO     | main.py:742 | A股自选股智能分析系统 启动
+2026-05-29 15:14:36 | INFO     | main.py:743 | 运行时间: 2026-05-29 15:14:36
+2026-05-29 15:14:36 | INFO     | main.py:744 | ============================================================
+2026-05-29 15:14:36 | INFO     | src\webui_frontend.py:199 | 检测到可直接复用的前端静态产物，跳过运行时自动构建: E:\development\outlets\daily_stock_analysis\static\index.html
+2026-05-29 15:14:36 | INFO     | main.py:621 | FastAPI 服务已启动: http://0.0.0.0:8000
+2026-05-29 15:14:36 | INFO     | main.py:792 | 模式: 仅 Web 服务
+2026-05-29 15:14:36 | INFO     | main.py:793 | Web 服务运行中: http://0.0.0.0:8000
+2026-05-29 15:14:36 | INFO     | main.py:794 | 通过 /api/v1/analysis/analyze 接口触发分析
+2026-05-29 15:14:36 | INFO     | main.py:795 | API 文档: http://0.0.0.0:8000/docs
+2026-05-29 15:14:36 | INFO     | main.py:796 | 按 Ctrl+C 退出...
+2026-05-29 15:14:37 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\server.py:92 | Started server process [18120]
+2026-05-29 15:14:37 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\lifespan\on.py:48 | Waiting for application startup.
+2026-05-29 15:14:37 | INFO     | src\storage.py:914 | 数据库初始化完成: postgresql+psycopg://dsa:dsa123@localhost:5435/daily_stock_analysis
+2026-05-29 15:14:37 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\lifespan\on.py:62 | Application startup complete.
+2026-05-29 15:14:37 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\server.py:224 | Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-05-29 15:14:43 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50899 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 15:14:43 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50900 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 15:14:43 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50901 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 15:14:43 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50902 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 15:14:43 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50903 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 15:14:43 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50907 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:14:43 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50910 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:14:44 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 15:14:44 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 15:14:44 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 15:14:44 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50914 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:14:44 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:50918 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:17:36 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 15:17:37 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 15:17:37 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 15:17:37 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:51271 - "PUT /api/v1/system/config HTTP/1.1" 200
+2026-05-29 15:17:37 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:51273 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:17:37 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 15:17:37 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 15:17:37 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 15:17:37 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:51280 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:31:40 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 15:31:40 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 15:31:40 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 15:31:40 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 15:31:40 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53241 - "PUT /api/v1/system/config HTTP/1.1" 200
+2026-05-29 15:31:40 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53244 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:31:40 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 15:31:40 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 15:31:40 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 15:31:40 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 15:31:40 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53249 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 15:31:46 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 15:31:46 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 15:31:46 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 15:31:46 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53257 - "PUT /api/v1/system/config HTTP/1.1" 200
+2026-05-29 15:31:47 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53262 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 15:31:47 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 15:31:47 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 15:31:47 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 15:31:47 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53265 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 16:25:08 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60452 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 16:25:08 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60454 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 16:25:08 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60455 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 16:25:08 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60456 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 16:25:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60458 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 16:25:12 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60464 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 16:25:12 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60468 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 16:25:13 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60470 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 16:25:13 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60477 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 16:25:39 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 16:25:39 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 16:25:39 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 16:25:39 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 16:25:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60563 - "PUT /api/v1/system/config HTTP/1.1" 200
+2026-05-29 16:25:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60565 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 16:25:40 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 16:25:40 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 16:25:40 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 16:25:40 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 16:25:40 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60574 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 16:25:44 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60594 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 16:25:44 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60596 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 16:25:44 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60595 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 16:25:44 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60597 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 16:25:44 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60598 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 16:25:45 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60599 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 16:25:45 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60602 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 16:25:45 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60605 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 16:25:46 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60609 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 16:26:26 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 16:26:26 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 16:26:26 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 16:26:26 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 16:26:26 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60707 - "PUT /api/v1/system/config HTTP/1.1" 200
+2026-05-29 16:26:27 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60713 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 16:26:27 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 16:26:27 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 16:26:27 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 16:26:27 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 16:26:27 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60715 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 16:27:20 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 16:27:20 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 16:27:20 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 16:27:20 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 16:27:20 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60822 - "PUT /api/v1/system/config HTTP/1.1" 200
+2026-05-29 16:27:20 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60824 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 16:27:20 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 16:27:20 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 16:27:20 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 16:27:20 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 16:27:20 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60828 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 16:27:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60871 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 16:27:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60872 - "GET /api/v1/admin/menus HTTP/1.1" 200
+2026-05-29 16:27:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60873 - "GET /api/v1/admin/settings HTTP/1.1" 200
+2026-05-29 16:27:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60874 - "GET /api/v1/admin/roles HTTP/1.1" 200
+2026-05-29 16:27:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60875 - "GET /api/v1/admin/users HTTP/1.1" 200
+2026-05-29 16:27:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60877 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 16:27:39 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60880 - "GET /api/v1/system/config?include_schema=true HTTP/1.1" 200
+2026-05-29 16:27:40 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60883 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 16:27:40 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:60888 - "GET /api/v1/agent/models HTTP/1.1" 200
+2026-05-29 16:35:00 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62111 - "GET /api/v1/system/config?include_schema=false HTTP/1.1" 401
+2026-05-29 16:35:00 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:62112 - "GET /health HTTP/1.1" 200
+2026-05-29 17:29:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53100 - "GET / HTTP/1.1" 200
+2026-05-29 17:29:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53100 - "GET /assets/index-ny8EmgJR.js HTTP/1.1" 200
+2026-05-29 17:29:01 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53100 - "GET /assets/index-Bur2b3YL.css HTTP/1.1" 200
+2026-05-29 17:29:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53100 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 17:29:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53107 - "GET /stocks.index.json?_t=494457 HTTP/1.1" 200
+2026-05-29 17:29:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53106 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 17:29:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53100 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 17:29:02 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53106 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:29:02 | INFO     | src\services\task_queue.py:178 | [TaskQueue] 初始化完成，最大并发: 3
+2026-05-29 17:29:02 | INFO     | src\config.py:1585 | LLM channel 'comet': 3 model(s), 1 key(s)
+2026-05-29 17:29:03 | INFO     | src\config.py:1951 | TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: tushare,tencent,akshare_sina,efinance,akshare_em
+2026-05-29 17:29:03 | WARNING  | src\config.py:792 | Invalid AGENT_ARCH='', falling back to 'single'. Valid: {'single', 'multi'}
+2026-05-29 17:29:03 | WARNING  | src\config.py:804 | Invalid AGENT_ORCHESTRATOR_MODE='', falling back to 'standard'. Valid: {'standard', 'specialist', 'quick', 'full'}
+2026-05-29 17:29:03 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53100 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 17:29:03 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53106 - "GET /vite.svg HTTP/1.1" 200
+2026-05-29 17:29:03 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53106 - "GET /api/v1/history/6 HTTP/1.1" 200
+2026-05-29 17:29:03 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53107 - "GET /api/v1/history/6/news?limit=8 HTTP/1.1" 200
+2026-05-29 17:29:04 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53107 - "GET /api/v1/agent/chat/sessions?limit=50 HTTP/1.1" 200
+2026-05-29 17:29:04 | INFO     | src\agent\skills\base.py:360 | Loaded 11 built-in skills from E:\development\outlets\daily_stock_analysis\strategies
+2026-05-29 17:29:04 | INFO     | src\agent\factory.py:213 | [AgentFactory] SkillManager prototype cached (11 skills)
+2026-05-29 17:29:04 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53106 - "GET /api/v1/agent/skills HTTP/1.1" 200
+2026-05-29 17:30:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53312 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 17:30:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53311 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:30:09 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53310 - "GET /api/v1/history/6/news?limit=8 HTTP/1.1" 200
+2026-05-29 17:30:28 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53313 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:30:38 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53357 - "GET /api/v1/agent/skills HTTP/1.1" 200
+2026-05-29 17:30:38 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53358 - "GET /api/v1/history/6 HTTP/1.1" 200
+2026-05-29 17:30:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53359 - "GET /api/v1/history/6/news?limit=8 HTTP/1.1" 200
+2026-05-29 17:30:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53359 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:30:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53359 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 17:31:20 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53377 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:31:45 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53378 - "GET /api/v1/history/6/markdown HTTP/1.1" 200
+2026-05-29 17:31:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53378 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:31:55 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53525 - "GET /api/v1/history/6/markdown HTTP/1.1" 200
+2026-05-29 17:32:20 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53584 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:32:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53642 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:33:21 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53717 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:33:24 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53717 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:33:42 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53812 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:33:49 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53834 - "POST /api/v1/auth/logout HTTP/1.1" 204
+2026-05-29 17:33:49 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53834 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 17:33:54 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53834 - "POST /api/v1/auth/login HTTP/1.1" 200
+2026-05-29 17:33:54 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53834 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 17:33:54 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53834 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 17:33:54 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53834 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 17:33:54 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53834 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:33:54 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53834 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 17:33:54 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53854 - "GET /api/v1/history/6 HTTP/1.1" 200
+2026-05-29 17:33:54 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53854 - "GET /api/v1/history/6/news?limit=8 HTTP/1.1" 200
+2026-05-29 17:33:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53854 - "POST /api/v1/auth/logout HTTP/1.1" 204
+2026-05-29 17:33:56 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:53854 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 17:35:49 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:54091 - "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 200
+2026-05-29 17:35:49 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:54091 - "GET /login?redirect=%2F HTTP/1.1" 200
+2026-05-29 17:35:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:54091 - "GET /assets/index-ny8EmgJR.js HTTP/1.1" 200
+2026-05-29 17:35:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:54094 - "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 200
+2026-05-29 17:35:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:54094 - "GET /assets/index-Bur2b3YL.css HTTP/1.1" 200
+2026-05-29 17:35:50 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:54091 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 17:35:51 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:54091 - "GET /vite.svg HTTP/1.1" 200
+2026-05-29 17:56:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57382 - "POST /api/v1/auth/login HTTP/1.1" 200
+2026-05-29 17:56:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57382 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 17:56:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57382 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 17:56:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57382 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 17:56:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57382 - "GET /stocks.index.json?_t=494457 HTTP/1.1" 200
+2026-05-29 17:56:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57382 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:56:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57382 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 17:56:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57388 - "GET /api/v1/history/6 HTTP/1.1" 200
+2026-05-29 17:56:16 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57388 - "GET /api/v1/history/6/news?limit=8 HTTP/1.1" 200
+2026-05-29 17:56:19 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57388 - "POST /api/v1/auth/logout HTTP/1.1" 204
+2026-05-29 17:56:19 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57388 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 17:56:25 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57389 - "POST /api/v1/auth/login HTTP/1.1" 200
+2026-05-29 17:56:25 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57389 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 17:56:25 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57391 - "GET /stocks.index.json?_t=494457 HTTP/1.1" 200
+2026-05-29 17:56:25 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57390 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 17:56:25 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57389 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 17:56:25 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57392 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:56:25 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57390 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 17:56:25 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57392 - "GET /api/v1/history/6 HTTP/1.1" 200
+2026-05-29 17:56:25 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57392 - "GET /api/v1/history/6/news?limit=8 HTTP/1.1" 200
+2026-05-29 17:56:27 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57392 - "POST /api/v1/auth/logout HTTP/1.1" 204
+2026-05-29 17:56:27 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57392 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 17:56:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57392 - "POST /api/v1/auth/login HTTP/1.1" 200
+2026-05-29 17:56:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57392 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 17:56:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57405 - "GET /api/v1/payment/rate HTTP/1.1" 200
+2026-05-29 17:56:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57405 - "GET /stocks.index.json?_t=494457 HTTP/1.1" 200
+2026-05-29 17:56:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57392 - "GET /api/v1/payment/balance HTTP/1.1" 200
+2026-05-29 17:56:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57392 - "GET /api/v1/history?page=1&limit=20&start_date=2026-04-29&end_date=2026-05-29 HTTP/1.1" 200
+2026-05-29 17:56:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57392 - "GET /api/v1/analysis/tasks/stream HTTP/1.1" 200
+2026-05-29 17:56:31 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57405 - "GET /api/v1/history/6 HTTP/1.1" 200
+2026-05-29 17:56:32 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57405 - "GET /api/v1/history/6/news?limit=8 HTTP/1.1" 200
+2026-05-29 17:56:36 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57405 - "POST /api/v1/auth/logout HTTP/1.1" 204
+2026-05-29 17:56:36 | INFO     | C:\Users\Administrator\.pyenv\pyenv-win\versions\3.10.11\lib\site-packages\uvicorn\protocols\http\httptools_impl.py:484 | 127.0.0.1:57405 - "GET /api/v1/auth/status HTTP/1.1" 200
+2026-05-29 18:14:57 | INFO     | main.py:801 | 
+用户中断，程序退出

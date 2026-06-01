@@ -19,6 +19,61 @@ const baseSummary = {
 };
 
 describe('ReportOverview', () => {
+  it('renders company profile basics with website link', () => {
+    render(
+      <ReportOverview
+        meta={{ ...baseMeta, reportLanguage: 'en', stockName: 'Apple' }}
+        summary={baseSummary}
+        details={{
+          companyProfile: {
+            fullName: 'Apple Inc.',
+            industry: 'Consumer Electronics',
+            legalRepresentative: 'Tim Cook',
+            listingDate: '1980-12-12',
+            totalShareCapital: 15000000000,
+            floatShareCapital: 14900000000,
+            employeeCount: 164000,
+            website: 'www.apple.com',
+            companyIntro: 'Apple designs consumer technology products and services.',
+            actualController: 'Public shareholders',
+            actualControllerHoldRatio: 12.25,
+            directController: 'Board of Directors',
+            controlType: 'Public company',
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Company Basics')).toBeInTheDocument();
+    expect(screen.getByText('Apple Inc.')).toBeInTheDocument();
+    expect(screen.getByText('Consumer Electronics')).toBeInTheDocument();
+    expect(screen.getByText('1980-12-12')).toBeInTheDocument();
+    expect(screen.getByText('Company Introduction')).toBeInTheDocument();
+    expect(screen.getByText('Apple designs consumer technology products and services.')).toBeInTheDocument();
+    expect(screen.getByText('Core Management')).toBeInTheDocument();
+    expect(screen.getByText('Tim Cook')).toBeInTheDocument();
+    expect(screen.getByText('Public shareholders (Holding approx. 12.25%)')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /www\.apple\.com/i })).toHaveAttribute(
+      'href',
+      'https://www.apple.com',
+    );
+  });
+
+  it('uses industry board as company basics fallback', () => {
+    render(
+      <ReportOverview
+        meta={{ ...baseMeta, reportLanguage: 'en' }}
+        summary={baseSummary}
+        details={{
+          belongBoards: [{ name: 'Semiconductors', type: 'Industry' }],
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Company Basics')).toBeInTheDocument();
+    expect(screen.getAllByText('Semiconductors').length).toBeGreaterThan(0);
+  });
+
   it('renders related boards with leading and lagging markers', () => {
     render(
       <ReportOverview
@@ -39,7 +94,7 @@ describe('ReportOverview', () => {
     );
 
     expect(screen.getByText('关联板块')).toBeInTheDocument();
-    expect(screen.getByText('白酒')).toBeInTheDocument();
+    expect(screen.getAllByText('白酒').length).toBeGreaterThan(0);
     expect(screen.getByText('行业')).toBeInTheDocument();
     expect(screen.getByText('领涨')).toBeInTheDocument();
     expect(screen.getByText('+2.31%')).toBeInTheDocument();
@@ -60,7 +115,7 @@ describe('ReportOverview', () => {
     );
 
     expect(screen.getByText('关联板块')).toBeInTheDocument();
-    expect(screen.getByText('半导体')).toBeInTheDocument();
+    expect(screen.getAllByText('半导体').length).toBeGreaterThan(0);
     expect(screen.queryByText('中性')).not.toBeInTheDocument();
     expect(screen.queryByText('领涨')).not.toBeInTheDocument();
     expect(screen.queryByText('领跌')).not.toBeInTheDocument();

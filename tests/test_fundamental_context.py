@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+import pandas as pd
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -48,7 +49,13 @@ class TestFundamentalContext(unittest.TestCase):
             fundamental_fetch_timeout_seconds=0.8,
             fundamental_retry_max=1,
         )
-        with patch("src.config.get_config", return_value=cfg):
+        with patch("src.config.get_config", return_value=cfg), \
+                patch.object(manager, "get_company_profile_context", return_value={
+                    "status": "not_supported",
+                    "source_chain": [],
+                    "errors": [],
+                    "data": {},
+                }):
             ctx = manager.get_fundamental_context("AAPL")
         self.assertEqual(ctx["market"], "us")
         self.assertEqual(ctx["status"], "not_supported")
@@ -86,6 +93,12 @@ class TestFundamentalContext(unittest.TestCase):
             "errors": [],
         }
         with patch("src.config.get_config", return_value=cfg), \
+                patch.object(manager, "get_company_profile_context", return_value={
+                    "status": "not_supported",
+                    "source_chain": [],
+                    "errors": [],
+                    "data": {},
+                }), \
                 patch.object(manager, "get_realtime_quote", return_value=quote), \
                 patch(
                     "data_provider.fundamental_adapter.AkshareFundamentalAdapter.get_fundamental_bundle",
@@ -136,6 +149,12 @@ class TestFundamentalContext(unittest.TestCase):
             source=SimpleNamespace(value="tencent"),
         )
         with patch("src.config.get_config", return_value=cfg), \
+                patch.object(manager, "get_company_profile_context", return_value={
+                    "status": "ok",
+                    "source_chain": [],
+                    "errors": [],
+                    "data": {"full_name": "Kweichow Moutai Co., Ltd."},
+                }), \
                 patch.object(manager, "get_realtime_quote", return_value=quote), \
                 patch("data_provider.fundamental_adapter.AkshareFundamentalAdapter.get_fundamental_bundle", return_value={
                     "growth": {"revenue_yoy": 10.1, "net_profit_yoy": 8.5},
@@ -150,9 +169,143 @@ class TestFundamentalContext(unittest.TestCase):
             ctx = manager.get_fundamental_context("600519", budget_seconds=1.5)
         self.assertEqual(ctx["market"], "cn")
         self.assertIn("valuation", ctx)
+        self.assertIn("company_profile", ctx)
+        self.assertEqual(ctx["company_profile"]["data"]["full_name"], "Kweichow Moutai Co., Ltd.")
         self.assertIn("growth", ctx)
         self.assertIn("capital_flow", ctx)
         self.assertIn("dragon_tiger", ctx)
+
+    def test_cn_company_profile_uses_cninfo_as_primary_source(self) -> None:
+        manager = DataFetcherManager(fetchers=[])
+        cfg = SimpleNamespace(
+            enable_fundamental_pipeline=True,
+            fundamental_cache_ttl_seconds=120,
+            fundamental_stage_timeout_seconds=1.5,
+            fundamental_fetch_timeout_seconds=0.8,
+            fundamental_retry_max=1,
+        )
+        cninfo_df = pd.DataFrame([{
+            "公司名称": "贵州茅台酒股份有限公司",
+            "A股简称": "贵州茅台",
+            "所属行业": "酒、饮料和精制茶制造业",
+            "法人代表": "张德芹",
+            "上市日期": "2001-08-27",
+            "官方网站": "www.moutaichina.com",
+            "主营业务": "茅台酒及系列酒的生产与销售",
+            "机构简介": "公司主要从事贵州茅台酒及系列酒的生产和销售。",
+        }])
+        value_df = pd.DataFrame([
+            {"数据日期": "2024-12-31", "总股本": 1256197800, "流通股本": 1256197800},
+            {"数据日期": "2025-01-02", "总股本": 1256197800, "流通股本": 1256197800},
+        ])
+        control_df = pd.DataFrame([{
+            "证券代码": "600519",
+            "证券简称": "贵州茅台",
+            "变动日期": "2025-01-01",
+            "实际控制人名称": "贵州省人民政府国有资产监督管理委员会",
+            "控股数量": 678291955,
+            "控股比例": 54.0,
+            "直接控制人名称": "中国贵州茅台酒厂(集团)有限责任公司",
+            "控制类型": "实际控制人",
+        }])
+        akshare_stub = SimpleNamespace(
+            stock_profile_cninfo=lambda symbol: cninfo_df,
+            stock_value_em=lambda symbol: value_df,
+            stock_hold_control_cninfo=lambda symbol: control_df,
+        )
+
+        with patch("src.config.get_config", return_value=cfg), \
+                patch.dict(sys.modules, {"akshare": akshare_stub}):
+            block = manager.get_company_profile_context("600519", budget_seconds=1.0)
+
+        self.assertEqual(block["status"], "ok")
+        self.assertEqual(block["source_chain"][0]["provider"], "akshare_stock_profile_cninfo")
+        self.assertEqual(block["data"]["full_name"], "贵州茅台酒股份有限公司")
+        self.assertEqual(block["data"]["industry"], "酒、饮料和精制茶制造业")
+        self.assertEqual(block["data"]["legal_representative"], "张德芹")
+        self.assertEqual(block["data"]["listing_date"], "2001-08-27")
+        self.assertEqual(block["data"]["website"], "www.moutaichina.com")
+        self.assertEqual(block["data"]["main_business"], "茅台酒及系列酒的生产与销售")
+        self.assertEqual(block["data"]["company_intro"], "公司主要从事贵州茅台酒及系列酒的生产和销售。")
+        self.assertEqual(block["data"]["actual_controller"], "贵州省人民政府国有资产监督管理委员会")
+        self.assertEqual(block["data"]["actual_controller_hold_ratio"], 54.0)
+        self.assertEqual(block["data"]["direct_controller"], "中国贵州茅台酒厂(集团)有限责任公司")
+        self.assertEqual(block["data"]["control_type"], "实际控制人")
+        self.assertEqual(block["data"]["total_share_capital"], 1256197800)
+        self.assertEqual(block["data"]["float_share_capital"], 1256197800)
+
+    def test_cn_company_profile_keeps_cninfo_when_supplemental_source_fails(self) -> None:
+        manager = DataFetcherManager(fetchers=[])
+        cfg = SimpleNamespace(
+            enable_fundamental_pipeline=True,
+            fundamental_cache_ttl_seconds=120,
+            fundamental_stage_timeout_seconds=1.5,
+            fundamental_fetch_timeout_seconds=0.8,
+            fundamental_retry_max=1,
+        )
+        cninfo_df = pd.DataFrame([{
+            "公司名称": "中信证券股份有限公司",
+            "所属行业": "资本市场服务",
+            "上市日期": "2003-01-06",
+            "官方网站": "www.citics.com",
+        }])
+
+        def raise_supplemental_error(symbol):
+            raise RuntimeError("supplemental unavailable")
+
+        akshare_stub = SimpleNamespace(
+            stock_profile_cninfo=lambda symbol: cninfo_df,
+            stock_value_em=raise_supplemental_error,
+        )
+
+        with patch("src.config.get_config", return_value=cfg), \
+                patch.dict(sys.modules, {"akshare": akshare_stub}):
+            block = manager.get_company_profile_context("600030", budget_seconds=1.0)
+
+        self.assertEqual(block["status"], "ok")
+        self.assertEqual(block["data"]["full_name"], "中信证券股份有限公司")
+        self.assertEqual(block["data"]["industry"], "资本市场服务")
+        self.assertNotIn("total_share_capital", block["data"])
+
+    def test_hk_company_profile_uses_eastmoney_company_profile(self) -> None:
+        manager = DataFetcherManager(fetchers=[])
+        cfg = SimpleNamespace(
+            enable_fundamental_pipeline=True,
+            fundamental_cache_ttl_seconds=120,
+            fundamental_stage_timeout_seconds=1.5,
+            fundamental_fetch_timeout_seconds=0.8,
+            fundamental_retry_max=1,
+        )
+        profile_df = pd.DataFrame([{
+            "公司名称": "腾讯控股有限公司",
+            "英文名称": "TENCENT HOLDINGS LIMITED",
+            "所属行业": "软件服务",
+            "员工人数": 108823,
+            "公司网址": "www.tencent.com",
+            "公司介绍": "腾讯是一家互联网科技公司。",
+        }])
+        indicator_df = pd.DataFrame([{
+            "已发行股本(股)": 9350000000,
+            "已发行股本-H股(股)": 9350000000,
+        }])
+        akshare_stub = SimpleNamespace(
+            stock_hk_company_profile_em=lambda symbol: profile_df,
+            stock_hk_financial_indicator_em=lambda symbol: indicator_df,
+        )
+
+        with patch("src.config.get_config", return_value=cfg), \
+                patch.dict(sys.modules, {"akshare": akshare_stub}):
+            block = manager.get_company_profile_context("hk00700", budget_seconds=1.0)
+
+        self.assertEqual(block["status"], "ok")
+        self.assertEqual(block["source_chain"][0]["provider"], "akshare_stock_hk_company_profile_em")
+        self.assertEqual(block["data"]["full_name"], "腾讯控股有限公司")
+        self.assertEqual(block["data"]["industry"], "软件服务")
+        self.assertEqual(block["data"]["employee_count"], 108823)
+        self.assertEqual(block["data"]["website"], "www.tencent.com")
+        self.assertEqual(block["data"]["company_intro"], "腾讯是一家互联网科技公司。")
+        self.assertEqual(block["data"]["total_share_capital"], 9350000000)
+        self.assertEqual(block["data"]["float_share_capital"], 9350000000)
 
     def test_fundamental_context_derives_ttm_dividend_yield_from_quote_price(self) -> None:
         manager = DataFetcherManager(fetchers=[])
@@ -172,6 +325,12 @@ class TestFundamentalContext(unittest.TestCase):
             source=SimpleNamespace(value="tencent"),
         )
         with patch("src.config.get_config", return_value=cfg), \
+                patch.object(manager, "get_company_profile_context", return_value={
+                    "status": "not_supported",
+                    "source_chain": [],
+                    "errors": [],
+                    "data": {},
+                }), \
                 patch.object(manager, "get_realtime_quote", return_value=quote), \
                 patch("data_provider.fundamental_adapter.AkshareFundamentalAdapter.get_fundamental_bundle", return_value={
                     "status": "partial",
@@ -214,6 +373,12 @@ class TestFundamentalContext(unittest.TestCase):
             source=SimpleNamespace(value="tencent"),
         )
         with patch("src.config.get_config", return_value=cfg), \
+                patch.object(manager, "get_company_profile_context", return_value={
+                    "status": "not_supported",
+                    "source_chain": [],
+                    "errors": [],
+                    "data": {},
+                }), \
                 patch.object(manager, "get_realtime_quote", return_value=quote), \
                 patch("data_provider.fundamental_adapter.AkshareFundamentalAdapter.get_fundamental_bundle", return_value={
                     "status": "partial",
@@ -276,6 +441,12 @@ class TestFundamentalContext(unittest.TestCase):
             return {"status": "not_supported", "source_chain": [], "errors": [], "data": {}}
 
         with patch("src.config.get_config", return_value=cfg), \
+                patch.object(manager, "get_company_profile_context", return_value={
+                    "status": "not_supported",
+                    "source_chain": [],
+                    "errors": [],
+                    "data": {},
+                }), \
                 patch.object(manager, "get_realtime_quote", return_value=quote), \
                 patch(
                     "data_provider.fundamental_adapter.AkshareFundamentalAdapter.get_fundamental_bundle",
@@ -360,6 +531,12 @@ class TestFundamentalContext(unittest.TestCase):
             "errors": [],
         }
         with patch("src.config.get_config", return_value=cfg), \
+                patch.object(manager, "get_company_profile_context", return_value={
+                    "status": "not_supported",
+                    "source_chain": [],
+                    "errors": [],
+                    "data": {},
+                }), \
                 patch.object(manager, "get_realtime_quote", return_value=quote), \
                 patch(
                     "data_provider.fundamental_adapter.AkshareFundamentalAdapter.get_fundamental_bundle",
