@@ -699,8 +699,8 @@ class Config:
     # === 基本面聚合开关与降级保护 ===
     # 全局总开关；关闭时返回 not_supported 并保持主流程无变化
     enable_fundamental_pipeline: bool = True
-    # 基本面阶段总预算（秒）
-    fundamental_stage_timeout_seconds: float = 1.5
+    # 基本面阶段总预算（秒）— bundle 内含多个串行 API 调用，需充足预算
+    fundamental_stage_timeout_seconds: float = 5.0
     # 单能力源调用超时（秒）
     fundamental_fetch_timeout_seconds: float = 0.8
     # 单能力失败重试次数（已包含首次）
@@ -1400,7 +1400,7 @@ class Config:
             enable_fundamental_pipeline=os.getenv('ENABLE_FUNDAMENTAL_PIPELINE', 'true').lower() == 'true',
             fundamental_stage_timeout_seconds=parse_env_float(
                 os.getenv('FUNDAMENTAL_STAGE_TIMEOUT_SECONDS'),
-                1.5,
+                5.0,
                 field_name='FUNDAMENTAL_STAGE_TIMEOUT_SECONDS',
                 minimum=0.0,
             ),

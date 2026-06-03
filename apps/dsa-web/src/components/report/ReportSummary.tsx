@@ -4,6 +4,8 @@ import { ReportOverview } from './ReportOverview';
 import { ReportStrategy } from './ReportStrategy';
 import { ReportNews } from './ReportNews';
 import { ReportDetails } from './ReportDetails';
+import { FinancialRevenueGrowthSection } from './FinancialRevenueGrowthSection';
+import { FinancialProfitabilitySection } from './FinancialProfitabilitySection';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
 
 interface ReportSummaryProps {
@@ -40,6 +42,17 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
         summary={summary}
         details={details}
         isHistory={isHistory}
+      />
+
+      {/* 财务数据分析区 */}
+      <FinancialRevenueGrowthSection
+        financialReport={details?.financialReport}
+        language={reportLanguage}
+      />
+      <FinancialProfitabilitySection
+        financialReport={details?.financialReport}
+        profitabilityAnalysis={details?.profitabilityAnalysis}
+        language={reportLanguage}
       />
 
       {/* 策略点位区 */}

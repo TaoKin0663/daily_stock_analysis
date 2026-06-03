@@ -37,6 +37,7 @@ const HomePage: React.FC = () => {
     refreshHistory,
     loadMoreHistory,
     selectHistoryItem,
+    selectLatestHistoryItem,
     toggleHistorySelection,
     toggleSelectAllVisible,
     deleteSelectedHistory,
@@ -61,6 +62,7 @@ const HomePage: React.FC = () => {
   useDashboardLifecycle({
     loadInitialHistory,
     refreshHistory,
+    selectLatestHistoryItem,
     syncTaskCreated,
     syncTaskUpdated,
     syncTaskFailed,
@@ -302,6 +304,7 @@ const HomePage: React.FC = () => {
           stockName={selectedReport.meta.stockName || ''}
           stockCode={selectedReport.meta.stockCode}
           reportLanguage={reportLanguage}
+          details={selectedReport.details}
           onClose={closeMarkdownDrawer}
         />
       ) : null}

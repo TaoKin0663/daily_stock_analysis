@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [修复] 修复 Agent 模式历史报告详情未能从顶层 `fundamental_context` 提取 2.1/2.2 财报数据的问题，并在任务完成后自动打开最新完成报告。
+- [修复] 修复首页与完整报告 2.2 盈利能力在 LLM 未返回 `profitability_analysis` 时整块不显示的问题，改为使用结构化毛利率/净利率/ROE 指标生成兜底摘要并保留毛利率图表。
+- [改进] 2.2 盈利能力区块改为 LLM 生成的动态文字分析并保留毛利率趋势图，不再展示固定表格。
+- [修复] 调整基础面缓存 key 版本并避免 2.2 盈利能力抓取挤占主基础面预算，防止旧缓存或补充抓取影响 2.1 营收增长展示。
+- [修复] 2.2 盈利能力改为基础面阶段独立抓取并写入 `financial_report.profitability`，避免基础面 bundle 超时或后续数据源失败时页面缺失。
+- [修复] 修正 2.2 盈利能力数据源调用，A 股财务分析指标接口优先使用带交易所后缀的 `SECUCODE` 并按东财字段 `XSMLL`、`XSJLL`、`ROEJQ` 解析毛利率、净利率、ROE。
+- [改进] 首页报告新增 2.2 盈利能力区块，基于 AkShare `stock_financial_analysis_indicator_em` 展示毛利率、净利率、ROE 指标和毛利率趋势图。
+- [改进] 首页报告新增 1.2 业务模式区块，LLM 输出动态业务维度并在完整报告和 PDF 打印内容中同步展示。
+- [改进] 首页完整报告的营收增长区块新增年度营业收入柱状图，并支持通过浏览器打印流程保存完整报告 PDF。
+- [改进] 首页报告新增 2.1 营收增长表格，基于 AkShare `stock_lrb_em` 对应东方财富利润表数据展示年度营业收入（亿）与同比增长率。
+- [改进] 首页完整分析报告抽屉同步展示公司基本信息、公司基本介绍与核心管理层。
 - [改进] 首页分析报告新增公司基本信息区，后端 best-effort 透出公司全称、行业、上市日期、股本、员工规模和官网。
 - [改进] 公司基本信息链路新增后端调试日志和本地诊断脚本，便于核对 companyProfile 数据源返回与 API 提取结果。
 - [改进] A 股公司基本信息主源改用 AkShare `stock_profile_cninfo` 巨潮资讯公司概况接口。

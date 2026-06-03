@@ -59,6 +59,31 @@ describe('ReportOverview', () => {
     );
   });
 
+  it('renders business model section with dynamic dimensions', () => {
+    render(
+      <ReportOverview
+        meta={{ ...baseMeta, reportLanguage: 'en', stockName: 'CloudCo' }}
+        summary={baseSummary}
+        details={{
+          businessModel: {
+            summary: 'CloudCo monetizes enterprise cloud infrastructure through subscriptions.',
+            items: [
+              {
+                title: 'Revenue mix',
+                content: 'Subscription contracts and usage-based services provide recurring revenue.',
+              },
+            ],
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Business Model')).toBeInTheDocument();
+    expect(screen.getByText('Revenue mix')).toBeInTheDocument();
+    expect(screen.getByText(/usage-based services/)).toBeInTheDocument();
+    expect(screen.getByText('Core Business Model')).toBeInTheDocument();
+  });
+
   it('uses industry board as company basics fallback', () => {
     render(
       <ReportOverview
@@ -72,6 +97,21 @@ describe('ReportOverview', () => {
 
     expect(screen.getByText('Company Basics')).toBeInTheDocument();
     expect(screen.getAllByText('Semiconductors').length).toBeGreaterThan(0);
+  });
+
+  it('uses Chinese industry board as company basics fallback', () => {
+    render(
+      <ReportOverview
+        meta={{ ...baseMeta, reportLanguage: 'en' }}
+        summary={baseSummary}
+        details={{
+          belongBoards: [{ name: 'Baijiu', type: '行业' }],
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Company Basics')).toBeInTheDocument();
+    expect(screen.getAllByText('Baijiu').length).toBeGreaterThan(0);
   });
 
   it('renders related boards with leading and lagging markers', () => {

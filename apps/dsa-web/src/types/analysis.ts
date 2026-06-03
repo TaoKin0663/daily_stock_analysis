@@ -99,14 +99,84 @@ export interface CompanyProfile {
   controlType?: string;
 }
 
+export interface RevenueGrowthRow {
+  fiscalYear?: number;
+  reportDate?: string;
+  revenue?: number | null;
+  revenueYoy?: number | null;
+  announcementDate?: string | null;
+}
+
+export interface RevenueGrowthReport {
+  rows?: RevenueGrowthRow[];
+  unit?: string;
+  frequency?: string;
+  source?: string;
+}
+
+export interface ProfitabilityRow {
+  period?: string;
+  reportDate?: string | null;
+  report_date?: string | null;
+  grossMargin?: number | null;
+  gross_margin?: number | string | null;
+  netMargin?: number | null;
+  net_margin?: number | string | null;
+  roe?: number | null;
+}
+
+export interface ProfitabilityReport {
+  rows?: ProfitabilityRow[];
+  unit?: string;
+  frequency?: string;
+  source?: string;
+}
+
+export interface ProfitabilityAnalysisItem {
+  title?: string;
+  content?: string;
+}
+
+export interface ProfitabilityAnalysisReport {
+  summary?: string;
+  items?: ProfitabilityAnalysisItem[];
+  source?: string;
+}
+
+export interface BusinessModelItem {
+  title?: string;
+  content?: string;
+}
+
+export interface BusinessModelReport {
+  summary?: string;
+  items?: BusinessModelItem[];
+  source?: string;
+}
+
+export interface FinancialReport {
+  reportDate?: string | null;
+  revenue?: number | null;
+  revenueYoy?: number | null;
+  netProfitParent?: number | null;
+  operatingCashFlow?: number | null;
+  grossMargin?: number | null;
+  netMargin?: number | null;
+  roe?: number | null;
+  revenueGrowth?: RevenueGrowthReport;
+  profitability?: ProfitabilityReport;
+}
+
 /** Details section */
 export interface ReportDetails {
   newsContent?: string;
   rawResult?: Record<string, unknown>;
   contextSnapshot?: Record<string, unknown>;
-  financialReport?: Record<string, unknown>;
+  financialReport?: FinancialReport;
   dividendMetrics?: Record<string, unknown>;
   companyProfile?: CompanyProfile;
+  businessModel?: BusinessModelReport;
+  profitabilityAnalysis?: ProfitabilityAnalysisReport;
   belongBoards?: RelatedBoard[];
   sectorRankings?: SectorRankings;
 }

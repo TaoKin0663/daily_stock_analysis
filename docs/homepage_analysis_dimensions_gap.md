@@ -47,7 +47,7 @@
 | 大类 | 目标子项数 | 已有（完整） | 已有（部分） | 完全缺失 | 覆盖率 |
 |------|:---------:|:---------:|:---------:|:------:|:---:|
 | 一、公司概况 | 4 | 0 | 1 | 3 | ~15% |
-| 二、财务数据分析 | 4 | 0 | 0 | 4 | 0% |
+| 二、财务数据分析 | 4 | 0 | 1 | 3 | ~25% |
 | 三、技术分析 | 3 | 0 | 2 | 1 | ~35% |
 | 四、市场情绪分析 | 3 | 0 | 1 | 2 | ~15% |
 | 五、竞品对比 | 4 | 0 | 0 | 4 | 0% |
@@ -55,7 +55,7 @@
 | 七、主要风险分析 | 3 | 0 | 0 | 3 | 0% |
 | 八、结论与投资建议 | 3 | 0 | 1 | 2 | ~15% |
 | 九、投资要点总结 | 1 | 0 | 1 | 0 | ~50% |
-| **合计** | **28** | **0** | **6** | **22** | **~10%** |
+| **合计** | **28** | **0** | **7** | **21** | **~12%** |
 
 ---
 
@@ -95,9 +95,15 @@
 - 本地可执行 `python scripts/debug_company_profile.py 600519 --timeout 5` 直接检查数据源返回与 API 字段提取结果。
 - 若字段为 `null`，优先检查是否为旧报告、基础面 pipeline 未开启、数据源超时 / 空返回，或只查看了异步分析的初始 accepted 响应而非最终 status 响应。
 
-#### 1.2 业务模式 ❌ 完全缺失
+#### 1.2 业务模式 ✅ 已实现
 
-后端 LLM Prompt 中未要求生成业务模式分析。前端无对应展示。
+后端 LLM Prompt 要求新报告生成结构化 `business_model`，API 透传为 `details.businessModel`，前端通过 `BusinessModelSection` 在首页概览和完整报告抽屉中展示。
+
+**展示规则：**
+
+- `businessModel.items[]` 使用动态维度标题，不固定套用“产品结构 / 客户结构 / 技术路线 / 交付能力”；银行、医药、互联网、资源、地产等行业由 LLM 根据公司特点选择更贴切维度。
+- `businessModel.summary` 在底部以“核心业务模式”摘要块展示，形式参考竞品截图。
+- 老报告或 LLM 缺失结构化字段时，不做历史迁移，前端不展示 1.2 业务模式区块，避免与 1.1 公司基本介绍重复。
 
 #### 1.3 市值与行业地位 ❌ 完全缺失
 
@@ -112,41 +118,76 @@
 
 ### 二、财务数据分析
 
-**整体状态：❌ 此类下所有维度完全缺失。**
+**整体状态：⚠️ 已部分覆盖 2.1 营收增长与 2.2 盈利能力，其他财务维度仍缺失。**
 
 | 维度 | 后端数据 | 前端展示 |
 |------|:---:|:---:|
-| 2.1 营收增长 | ❌ 无 | ❌ 无 |
-| 2.2 盈利能力（毛利率/净利率/ROE） | ❌ 无 | ❌ 无 |
+| 2.1 营收增长 | ✅ 已有 | ✅ 已有 |
+| 2.2 盈利能力（毛利率/净利率/ROE） | ✅ 已有 | ✅ 已有 |
 | 2.3 资产负债结构 | ❌ 无 | ❌ 无 |
 | 2.4 现金流状况 | ❌ 无 | ❌ 无 |
 
-> **注：** TypeScript 类型中定义了 `FinancialReport` 接口（含 `totalRevenue`、`netProfit`、`grossMargin` 等字段），`details.financialReport` 存在于类型中，但：
-> 1. 后端实际数据中该字段通常为空或未填充
-> 2. 前端 `ReportOverview` 未读取或渲染该字段
+> **注：** `details.financialReport.revenueGrowth.rows` 已用于 2.1 营收增长展示，数据来自 AkShare `stock_lrb_em` 年度利润表；`details.financialReport.profitability.rows` 已用于 2.2 盈利能力展示，数据来自 AkShare `stock_financial_analysis_indicator_em`。资产负债结构、现金流状况仍待补齐。
 
 **TypeScript 类型定义（`analysis.ts`）：**
 ```typescript
 export interface FinancialReport {
-  fiscalYear: number;
-  totalRevenue: number | null;
-  netProfit: number | null;
-  grossMargin: number | null;
-  netMargin: number | null;
-  roe: number | null;
-  debtToEquity: number | null;
-  currentRatio: number | null;
-  eps: number | null;
-  bookValuePerShare: number | null;
-  revenueGrowth: number | null;
-  profitGrowth: number | null;
-  dividendYield: number | null;
-  dividendPayoutRatio: number | null;
-  pe: number | null;
-  pb: number | null;
-  ps: number | null;
+  reportDate?: string | null;
+  revenue?: number | null;
+  revenueYoy?: number | null;
+  netProfitParent?: number | null;
+  operatingCashFlow?: number | null;
+  roe?: number | null;
+  revenueGrowth?: {
+    rows?: Array<{
+      fiscalYear?: number;
+      reportDate?: string;
+      revenue?: number | null;
+      revenueYoy?: number | null;
+      announcementDate?: string | null;
+    }>;
+    unit?: string;
+    frequency?: string;
+    source?: string;
+  };
+  profitability?: {
+    rows?: Array<{
+      period?: string;
+      reportDate?: string | null;
+      grossMargin?: number | null;
+      netMargin?: number | null;
+      roe?: number | null;
+    }>;
+    unit?: string;
+    frequency?: string;
+    source?: string;
+  };
 }
 ```
+
+**2.1 已实现展示：**
+
+- 后端：`data_provider/fundamental_adapter.py` 使用 AkShare `stock_lrb_em` 对应的东方财富年度利润表接口，按 `SECURITY_CODE` + `REPORT_DATE` 定向查询后规范为 `financial_report.revenue_growth.rows[]`，避免全市场分页拉取超时。
+- API：`report.details.financial_report.revenue_growth.rows[]`，前端 camelCase 后为 `details.financialReport.revenueGrowth.rows[]`。
+- 前端：`FinancialRevenueGrowthSection` 在首页报告和完整报告抽屉展示表格与柱状图，表格列为 `年度 / 营业收入（亿） / 同比增长率`，图表展示年度营业收入（亿）并在 tooltip 中补充同比增长率。
+- 完整报告：抽屉工具栏支持通过浏览器打印流程保存为 PDF，打印内容包含公司基本信息、营收增长表格/图表、盈利能力文字分析/图表和 Markdown 正文。
+
+**2.2 已实现展示：**
+
+- 后端：`data_provider/fundamental_adapter.py` 使用 AkShare `stock_financial_analysis_indicator_em` 获取财务分析指标，规范为 `financial_report.profitability.rows[]`，字段包括 `period / report_date / gross_margin / net_margin / roe`；`src/analyzer.py` 将这些指标交给 LLM，要求输出动态 `profitability_analysis`。
+- API：结构化指标为 `report.details.financial_report.profitability.rows[]`，LLM 文字为 `report.details.profitability_analysis`；前端 camelCase 后分别为 `details.financialReport.profitability.rows[]` 与 `details.profitabilityAnalysis`。
+- 前端：`FinancialProfitabilitySection` 在首页报告和完整报告抽屉优先展示 LLM 生成的 summary/items 文字分析，并保留“盈利能力趋势（毛利率）”图表；不再展示盈利能力表格。
+- 兜底展示：如果 LLM 没有返回 `profitability_analysis`，但 `financial_report.profitability.rows[]` 或财报顶层盈利指标存在有效毛利率/净利率/ROE，则显示一条由结构化指标生成的盈利能力摘要并继续展示图表。
+- 缺失数据：接口不可用、字段缺失且没有任何有效盈利指标时不展示 2.2 区块，不输出“数据缺失，无法判断”占位内容。
+
+**2.1 / 2.2 调试方式：**
+
+- 新报告完成后先看 Network 中 `/api/v1/analysis/status/{task_id}` 的 `result.report.details.financial_report`。
+- 2.1 成功时应存在 `financial_report.revenue_growth.rows[]`；2.2 图表成功时应存在 `financial_report.profitability.rows[]`，LLM 文字成功时应存在 `profitability_analysis.summary` 或 `profitability_analysis.items[]`；若 LLM 文字缺失但结构化指标存在，前端会显示兜底指标摘要。
+- 2.2 数据源使用 AkShare `stock_financial_analysis_indicator_em(symbol="300308.SZ", indicator="按报告期")`，字段按东财文档映射：`XSMLL` → 毛利率、`XSJLL` → 净利率、`ROEJQ` → ROE。
+- Agent 模式保存的上下文快照为顶层 `fundamental_context`，API 详情提取已兼容该结构；标准模式仍使用 `enhanced_context.fundamental_context`。
+- 任务完成后首页会刷新历史并自动打开最新完成报告，避免仍停留在旧历史报告导致看不到新字段。
+- 基础面缓存 key 已带 `fin-report-v2` schema 版本，避免旧缓存继续返回缺少 2.1 / 2.2 的结果；若服务未重启，仍可能使用旧进程代码和内存缓存。
 
 ---
 
@@ -358,7 +399,7 @@ HomePage
 
 1. **已有但需增强（6项）：** 基本信息、股价走势、关键支撑/阻力位、短期投资建议、技术指标分析、投资要点总结 → 需补充更多子维度、增强交互
 2. **后端有数据但前端未渲染（~18个字段）：** 均线分析、量能分析、形态分析、基本面分析、行业板块、风险提醒、仓位策略等 → **前端工作量主要在这里**
-3. **前后端均缺失（~15项）：** 业务模式、市占率、护城河、竞品对比、DCF估值、机构评级、财务指标对比等 → **后端 LLM Prompt 需大幅扩展**
+3. **前后端均缺失（~14项）：** 市占率、护城河、竞品对比、DCF估值、机构评级、财务指标对比等 → **后端 LLM Prompt 需大幅扩展**
 
 ## 下一步建议
 

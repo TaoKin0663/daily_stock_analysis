@@ -365,6 +365,8 @@ class AnalysisResult:
     fundamental_analysis: str = ""  # 基本面综合分析
     sector_position: str = ""  # 板块地位和行业趋势
     company_highlights: str = ""  # 公司亮点/风险点
+    business_model: Optional[Dict[str, Any]] = None  # Structured business model analysis
+    profitability_analysis: Optional[Dict[str, Any]] = None  # LLM-written profitability analysis
 
     # ========== 情绪面/消息面分析 ==========
     news_summary: str = ""  # 近期重要新闻/公告摘要
@@ -417,6 +419,8 @@ class AnalysisResult:
             'fundamental_analysis': self.fundamental_analysis,
             'sector_position': self.sector_position,
             'company_highlights': self.company_highlights,
+            'business_model': self.business_model,
+            'profitability_analysis': self.profitability_analysis,
             'news_summary': self.news_summary,
             'market_sentiment': self.market_sentiment,
             'hot_topics': self.hot_topics,
@@ -1577,8 +1581,98 @@ class GeminiAnalyzer:
 
 > 若上述字段为 N/A 或缺失，请明确写“数据缺失，无法判断”，禁止编造。
 """
+            profitability = financial_report.get("profitability")
+            profitability_rows = (
+                profitability.get("rows", [])
+                if isinstance(profitability, dict)
+                else []
+            )
+            if isinstance(profitability_rows, list) and profitability_rows:
+                prompt += "\n### 盈利能力结构化指标（用于 2.2 盈利能力文字分析）\n"
+                prompt += "| 报告期 | 毛利率(%) | 净利率(%) | ROE(%) |\n|------|------:|------:|------:|\n"
+                for row in profitability_rows[:5]:
+                    if not isinstance(row, dict):
+                        continue
+                    period = row.get("period") or row.get("report_date") or "N/A"
+                    gross_margin = row.get("gross_margin", "N/A")
+                    net_margin = row.get("net_margin", "N/A")
+                    roe = row.get("roe", "N/A")
+                    prompt += f"| {period} | {gross_margin} | {net_margin} | {roe} |\n"
 
         # 添加筹码分布数据
+
+        company_profile_block = (
+            fundamental_context.get("company_profile", {})
+            if isinstance(fundamental_context, dict)
+            else {}
+        )
+        company_profile = (
+            company_profile_block.get("data", {})
+            if isinstance(company_profile_block, dict)
+            else {}
+        )
+        if isinstance(company_profile, dict) and company_profile:
+            prompt += f"""
+### 公司资料（用于业务模式分析）
+| 字段 | 内容 |
+|------|------|
+| 公司全称 | {company_profile.get('full_name', 'N/A')} |
+| 所属行业 | {company_profile.get('industry', 'N/A')} |
+| 主营业务 | {company_profile.get('main_business', 'N/A')} |
+| 经营范围 | {company_profile.get('business_scope', 'N/A')} |
+| 公司介绍 | {company_profile.get('company_intro', 'N/A')} |
+"""
+
+        if report_language == "en":
+            prompt += """
+### Business model output requirement
+Add a top-level `business_model` object to the JSON output:
+{
+  "summary": "A concise business model summary.",
+  "items": [
+    {"title": "A company-specific dimension", "content": "Concrete description backed by available context."}
+  ],
+  "source": "llm"
+}
+Use 3-5 dynamic dimensions that fit the company and industry. Do not force fixed headings. Product mix, customer base, technology path and delivery capability are only examples for hardware/manufacturing companies.
+If available context is not enough to describe the business model, set `business_model` to null. Do not output placeholder items or summaries such as "data unavailable", "insufficient data", or "cannot determine".
+
+### Profitability output requirement
+If the profitability metrics are available, add a top-level `profitability_analysis` object:
+{
+  "summary": "One concise paragraph about the company's profitability trend and latest gross margin, net margin and ROE.",
+  "items": [
+    {"title": "Metric or company-specific driver", "content": "Concrete explanation using available profitability data and company context."}
+  ],
+  "source": "llm"
+}
+Use 3-5 dynamic items that fit the company. Do not force fixed bullets. Do not mention industry average unless the context provides comparable data. If profitability metrics are unavailable, set `profitability_analysis` to null.
+"""
+        else:
+            prompt += """
+### 业务模式输出要求
+请在最终 JSON 顶层新增 `business_model` 对象：
+{
+  "summary": "一句话概括该公司的核心业务模式。",
+  "items": [
+    {"title": "贴合该公司的动态维度标题", "content": "基于已知上下文的具体描述。"}
+  ],
+  "source": "llm"
+}
+`items` 输出 3-5 项，标题必须按公司和行业动态生成，不要固定套用同一组标题。产品结构、客户结构、技术路线、交付能力只适用于部分制造/硬件公司；银行、医药、互联网、资源、地产等行业应改用更贴切的业务模式维度。
+如果上下文不足以描述业务模式，请将 `business_model` 设为 null，不要输出“数据缺失、无法判断”这类占位标题、条目或摘要。
+
+### 盈利能力输出要求
+如果上方“盈利能力结构化指标”存在有效数据，请在最终 JSON 顶层新增 `profitability_analysis` 对象：
+{
+  "summary": "一段话概括该公司盈利能力趋势，并点出最新毛利率、净利率、ROE。",
+  "items": [
+    {"title": "指标或公司特定驱动因素", "content": "结合盈利能力数据和公司上下文的具体解释。"}
+  ],
+  "source": "llm"
+}
+`items` 输出 3-5 项，标题和内容必须按公司、行业和已知数据动态生成，不要固定套用“毛利率/净利率/ROE/研发投入”同一组标题；只有上下文提供研发费用、行业均值、产品结构、客户结构等信息时才可引用。不要编造行业平均水平或研发投入。如果没有有效盈利能力指标，请将 `profitability_analysis` 设为 null。
+"""
         if 'chip' in context:
             chip = context['chip']
             profit_ratio = chip.get('profit_ratio', 0)
@@ -2022,6 +2116,8 @@ class GeminiAnalyzer:
                     fundamental_analysis=data.get('fundamental_analysis', ''),
                     sector_position=data.get('sector_position', ''),
                     company_highlights=data.get('company_highlights', ''),
+                    business_model=data.get('business_model'),
+                    profitability_analysis=data.get('profitability_analysis'),
                     # 情绪面/消息面
                     news_summary=data.get('news_summary', ''),
                     market_sentiment=data.get('market_sentiment', ''),

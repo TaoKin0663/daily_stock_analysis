@@ -288,6 +288,18 @@ class AnalysisApiContractTestCase(unittest.TestCase):
         if _build_analysis_report is None:
             self.skipTest("analysis endpoint helpers unavailable in this environment")
 
+        profitability = {
+            "rows": [
+                {
+                    "period": "2025-12-31",
+                    "gross_margin": 42.61,
+                    "net_margin": 28.2,
+                    "roe": 43.84,
+                }
+            ],
+            "unit": "percent",
+            "source": "stock_financial_analysis_indicator_em",
+        }
         report = _build_analysis_report(
             report_data={
                 "meta": {},
@@ -303,7 +315,11 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                     "fundamental_context": {
                         "earnings": {
                             "data": {
-                                "financial_report": {"report_date": "2025-12-31", "revenue": 1000},
+                                "financial_report": {
+                                    "report_date": "2025-12-31",
+                                    "revenue": 1000,
+                                    "profitability": profitability,
+                                },
                                 "dividend": {"ttm_dividend_yield_pct": 2.5},
                             }
                         }
@@ -314,6 +330,55 @@ class AnalysisApiContractTestCase(unittest.TestCase):
         )
 
         self.assertEqual(report.details.financial_report["report_date"], "2025-12-31")
+        self.assertEqual(report.details.financial_report["profitability"], profitability)
+        self.assertEqual(report.details.dividend_metrics["ttm_dividend_yield_pct"], 2.5)
+
+    def test_build_analysis_report_extracts_fundamental_fields_from_agent_snapshot(self) -> None:
+        if _build_analysis_report is None:
+            self.skipTest("analysis endpoint helpers unavailable in this environment")
+
+        profitability = {
+            "rows": [
+                {
+                    "period": "2025-12-31",
+                    "gross_margin": 42.61,
+                    "net_margin": 28.2,
+                    "roe": 43.84,
+                }
+            ],
+            "unit": "percent",
+            "source": "stock_financial_analysis_indicator_em",
+        }
+        report = _build_analysis_report(
+            report_data={
+                "meta": {},
+                "summary": {},
+                "strategy": {},
+                "details": {},
+            },
+            query_id="q1",
+            stock_code="600519",
+            stock_name="贵州茅台",
+            context_snapshot={
+                "stock_code": "600519",
+                "fundamental_context": {
+                    "earnings": {
+                        "data": {
+                            "financial_report": {
+                                "report_date": "2025-12-31",
+                                "revenue": 1000,
+                                "profitability": profitability,
+                            },
+                            "dividend": {"ttm_dividend_yield_pct": 2.5},
+                        }
+                    }
+                },
+            },
+            fallback_fundamental_payload=None,
+        )
+
+        self.assertEqual(report.details.financial_report["report_date"], "2025-12-31")
+        self.assertEqual(report.details.financial_report["profitability"], profitability)
         self.assertEqual(report.details.dividend_metrics["ttm_dividend_yield_pct"], 2.5)
 
     def test_build_analysis_report_extracts_company_profile_from_snapshot(self) -> None:
@@ -364,6 +429,66 @@ class AnalysisApiContractTestCase(unittest.TestCase):
         self.assertEqual(report.details.company_profile["actual_controller_hold_ratio"], 12.25)
         self.assertEqual(report.details.company_profile["total_share_capital"], 15000000000)
         self.assertEqual(report.details.company_profile["employee_count"], 164000)
+
+    def test_build_analysis_report_includes_business_model_from_report_data(self) -> None:
+        if _build_analysis_report is None:
+            self.skipTest("analysis endpoint helpers unavailable in this environment")
+
+        business_model = {
+            "summary": "CloudCo sells recurring cloud infrastructure services.",
+            "items": [
+                {
+                    "title": "Commercial model",
+                    "content": "Enterprise subscriptions and usage fees anchor revenue.",
+                }
+            ],
+            "source": "llm",
+        }
+        report = _build_analysis_report(
+            report_data={
+                "meta": {},
+                "summary": {},
+                "strategy": {},
+                "details": {"business_model": business_model},
+            },
+            query_id="q1",
+            stock_code="AAPL",
+            stock_name="Apple",
+            context_snapshot=None,
+            fallback_fundamental_payload=None,
+        )
+
+        self.assertEqual(report.details.business_model, business_model)
+
+    def test_build_analysis_report_includes_profitability_analysis_from_report_data(self) -> None:
+        if _build_analysis_report is None:
+            self.skipTest("analysis endpoint helpers unavailable in this environment")
+
+        profitability_analysis = {
+            "summary": "Profitability improved with higher gross margin and ROE.",
+            "items": [
+                {
+                    "title": "Gross margin",
+                    "content": "Gross margin reached 42.61% in the latest annual period.",
+                }
+            ],
+            "source": "llm",
+        }
+        report = _build_analysis_report(
+            report_data={
+                "meta": {},
+                "summary": {},
+                "strategy": {},
+                "details": {"profitability_analysis": profitability_analysis},
+            },
+            query_id="q1",
+            stock_code="AAPL",
+            stock_name="Apple",
+            context_snapshot=None,
+            fallback_fundamental_payload=None,
+        )
+
+        self.assertEqual(report.details.profitability_analysis, profitability_analysis)
 
     def test_build_analysis_report_extracts_related_board_fields_from_snapshot(self) -> None:
         if _build_analysis_report is None:

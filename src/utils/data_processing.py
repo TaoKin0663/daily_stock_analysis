@@ -160,6 +160,11 @@ def extract_fundamental_context(
             fundamental = enhanced.get("fundamental_context")
             if isinstance(fundamental, dict):
                 return fundamental
+        direct_fundamental = snapshot_obj.get("fundamental_context")
+        if isinstance(direct_fundamental, dict):
+            return direct_fundamental
+        if any(key in snapshot_obj for key in ("earnings", "growth", "valuation", "company_profile")):
+            return snapshot_obj
 
     fallback_obj = parse_json_field(fallback_fundamental_payload)
     if isinstance(fallback_obj, dict):

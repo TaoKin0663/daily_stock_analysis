@@ -7,6 +7,7 @@ import os
 import sys
 import unittest
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pandas as pd
@@ -15,6 +16,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from data_provider.fundamental_adapter import (
     AkshareFundamentalAdapter,
+    _a_share_secu_code_candidates,
     _build_dividend_payload,
     _extract_latest_row,
     _parse_dividend_plan_to_per_share,
@@ -43,6 +45,11 @@ class TestFundamentalAdapter(unittest.TestCase):
         row = _extract_latest_row(df, "600519")
         self.assertIsNotNone(row)
         self.assertEqual(row["值"], 1)
+
+    def test_a_share_secu_code_candidates_adds_market_suffix(self) -> None:
+        self.assertEqual(_a_share_secu_code_candidates("600519"), ["600519.SH", "600519"])
+        self.assertEqual(_a_share_secu_code_candidates("300308"), ["300308.SZ", "300308"])
+        self.assertEqual(_a_share_secu_code_candidates("000066.SZ"), ["000066.SZ", "000066"])
 
     def test_dragon_tiger_no_match_with_code_column_is_ok(self) -> None:
         adapter = AkshareFundamentalAdapter()
@@ -127,6 +134,143 @@ class TestFundamentalAdapter(unittest.TestCase):
         self.assertEqual(len(events), 2)  # duplicate + future day filtered
         self.assertEqual(dividend_payload.get("ttm_event_count"), 1)
         self.assertAlmostEqual(dividend_payload.get("ttm_cash_dividend_per_share"), 0.3, places=6)
+
+    def test_annual_revenue_growth_uses_stock_lrb_em(self) -> None:
+        adapter = AkshareFundamentalAdapter()
+        current_year = datetime.now().year
+        annual_payloads = {
+            f"{current_year - 1}1231": pd.DataFrame(
+                {
+                    "股票代码": ["600519", "000001"],
+                    "营业总收入": [15000000000.0, 1.0],
+                    "营业总收入同比": [12.5, 1.0],
+                    "公告日期": [f"{current_year}-03-30", f"{current_year}-03-30"],
+                }
+            ),
+            f"{current_year - 2}1231": pd.DataFrame(
+                {
+                    "股票代码": ["600519"],
+                    "营业总收入": [12000000000.0],
+                    "营业总收入同比": [8.2],
+                    "公告日期": [f"{current_year - 1}-03-30"],
+                }
+            ),
+        }
+
+        def fake_stock_lrb_em(date: str) -> pd.DataFrame:
+            return annual_payloads.get(date, pd.DataFrame())
+
+        fake_akshare = SimpleNamespace(stock_lrb_em=fake_stock_lrb_em)
+        with patch.dict(sys.modules, {"akshare": fake_akshare}):
+            payload, errors = adapter._fetch_annual_revenue_growth("600519", max_rows=2)
+
+        self.assertEqual(errors, [])
+        rows = payload.get("rows", [])
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["fiscal_year"], current_year - 1)
+        self.assertEqual(rows[0]["revenue"], 15000000000.0)
+        self.assertEqual(rows[0]["revenue_yoy"], 12.5)
+        self.assertEqual(payload.get("unit"), "yuan")
+        self.assertEqual(payload.get("source"), "stock_lrb_em")
+
+    def test_annual_revenue_growth_direct_uses_eastmoney_payload(self) -> None:
+        adapter = AkshareFundamentalAdapter()
+        current_year = datetime.now().year
+        annual_payloads = {
+            f"{current_year - 1}-12-31": {
+                "TOTAL_OPERATE_INCOME": 15000000000.0,
+                "TOI_RATIO": 12.5,
+                "REPORT_DATE": f"{current_year - 1}-12-31 00:00:00",
+                "NOTICE_DATE": f"{current_year}-03-30 00:00:00",
+            },
+            f"{current_year - 2}-12-31": {
+                "TOTAL_OPERATE_INCOME": 12000000000.0,
+                "TOI_RATIO": 8.2,
+                "REPORT_DATE": f"{current_year - 2}-12-31 00:00:00",
+                "NOTICE_DATE": f"{current_year - 1}-03-30 00:00:00",
+            },
+        }
+
+        def fake_get(_url, params=None, timeout=None):
+            filter_text = (params or {}).get("filter", "")
+            row = next((value for key, value in annual_payloads.items() if key in filter_text), None)
+            response = SimpleNamespace()
+            response.raise_for_status = lambda: None
+            response.json = lambda: {
+                "success": True,
+                "result": {"data": [row] if row else []},
+            }
+            return response
+
+        with patch("requests.get", side_effect=fake_get):
+            payload, errors = adapter._fetch_annual_revenue_growth_direct("600519", max_rows=2)
+
+        self.assertEqual(errors, [])
+        rows = payload.get("rows", [])
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["fiscal_year"], current_year - 1)
+        self.assertEqual(rows[0]["revenue"], 15000000000.0)
+        self.assertEqual(rows[0]["revenue_yoy"], 12.5)
+        self.assertEqual(payload.get("unit"), "yuan")
+        self.assertEqual(payload.get("source"), "stock_lrb_em")
+
+    def test_profitability_indicators_use_stock_financial_analysis_indicator_em(self) -> None:
+        adapter = AkshareFundamentalAdapter()
+
+        def fake_stock_financial_analysis_indicator_em(symbol: str) -> pd.DataFrame:
+            self.assertEqual(symbol, "600519.SH")
+            return pd.DataFrame(
+                {
+                    "日期": ["2025-12-31", "2024-12-31", "2023-12-31"],
+                    "销售毛利率": [42.61, 38.2, None],
+                    "销售净利率": [28.2, 25.1, None],
+                    "净资产收益率": [43.84, 32.5, None],
+                }
+            )
+
+        fake_akshare = SimpleNamespace(
+            stock_financial_analysis_indicator_em=fake_stock_financial_analysis_indicator_em
+        )
+        with patch.dict(sys.modules, {"akshare": fake_akshare}):
+            payload, errors = adapter._fetch_profitability_indicators("600519", max_rows=2)
+
+        self.assertEqual(errors, [])
+        rows = payload.get("rows", [])
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["period"], "2025-12-31")
+        self.assertEqual(rows[0]["gross_margin"], 42.61)
+        self.assertEqual(rows[0]["net_margin"], 28.2)
+        self.assertEqual(rows[0]["roe"], 43.84)
+        self.assertEqual(payload.get("unit"), "percent")
+        self.assertEqual(payload.get("source"), "stock_financial_analysis_indicator_em")
+
+    def test_profitability_indicators_support_eastmoney_raw_field_names(self) -> None:
+        adapter = AkshareFundamentalAdapter()
+
+        def fake_stock_financial_analysis_indicator_em(symbol: str) -> pd.DataFrame:
+            self.assertEqual(symbol, "300308.SZ")
+            return pd.DataFrame(
+                {
+                    "REPORT_DATE": ["2025-12-31", "2024-12-31"],
+                    "XSMLL": [50.4, 45.2],
+                    "XSJLL": [28.2, 24.6],
+                    "ROEJQ": [43.84, 31.7],
+                }
+            )
+
+        fake_akshare = SimpleNamespace(
+            stock_financial_analysis_indicator_em=fake_stock_financial_analysis_indicator_em
+        )
+        with patch.dict(sys.modules, {"akshare": fake_akshare}):
+            payload, errors = adapter._fetch_profitability_indicators("300308", max_rows=5)
+
+        self.assertEqual(errors, [])
+        rows = payload.get("rows", [])
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["period"], "2025-12-31")
+        self.assertEqual(rows[0]["gross_margin"], 50.4)
+        self.assertEqual(rows[0]["net_margin"], 28.2)
+        self.assertEqual(rows[0]["roe"], 43.84)
 
     def test_build_dividend_payload_returns_empty_when_code_not_matched(self) -> None:
         now = datetime.now().strftime("%Y-%m-%d")

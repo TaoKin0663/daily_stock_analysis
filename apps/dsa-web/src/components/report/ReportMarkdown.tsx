@@ -1,13 +1,20 @@
 import type React from 'react';
 import { useEffect, useState, useCallback } from 'react';
+import { FileDown } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { historyApi } from '../../api/history';
 import { Drawer } from '../common/Drawer';
 import { Tooltip } from '../common/Tooltip';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
-import type { ReportLanguage } from '../../types/analysis';
+import type { ReportDetails, ReportLanguage } from '../../types/analysis';
 import { markdownToPlainText } from '../../utils/markdown';
+import { hasBusinessModelValue } from '../../utils/businessModel';
+import { hasCompanyProfileValue } from '../../utils/companyProfile';
+import { BusinessModelSection } from './BusinessModelSection';
+import { CompanyProfileSection } from './CompanyProfileSection';
+import { FinancialRevenueGrowthSection } from './FinancialRevenueGrowthSection';
+import { FinancialProfitabilitySection } from './FinancialProfitabilitySection';
 
 interface ReportMarkdownProps {
   recordId: number;
@@ -15,7 +22,81 @@ interface ReportMarkdownProps {
   stockCode: string;
   onClose: () => void;
   reportLanguage?: ReportLanguage;
+  details?: ReportDetails;
 }
+
+const escapeHtml = (value: string): string => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
+
+const collectPageStyles = (): string => Array.from(
+  document.querySelectorAll<HTMLLinkElement | HTMLStyleElement>('link[rel="stylesheet"], style'),
+)
+  .map((node) => {
+    if (node instanceof HTMLLinkElement) {
+      return `<link rel="stylesheet" href="${escapeHtml(node.href)}">`;
+    }
+    return `<style>${node.textContent ?? ''}</style>`;
+  })
+  .join('\n');
+
+const buildPrintDocument = (title: string, reportHtml: string): string => `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${escapeHtml(title)}</title>
+    ${collectPageStyles()}
+    <style>
+      @page { margin: 14mm; }
+      html, body {
+        min-height: 100%;
+        background: #fff !important;
+        color: #111827 !important;
+      }
+      body {
+        margin: 0;
+        font-family: Inter, "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+      }
+      .report-print-document {
+        width: 100%;
+        max-width: 820px;
+        margin: 0 auto;
+        color: #111827 !important;
+      }
+      .print\\:hidden {
+        display: none !important;
+      }
+      .print\\:block {
+        display: block !important;
+      }
+      .recharts-responsive-container,
+      table,
+      pre,
+      blockquote {
+        break-inside: avoid;
+      }
+      .prose,
+      .prose-invert {
+        color: #111827 !important;
+      }
+      .prose :where(h1,h2,h3,h4,strong,th):not(:where([class~="not-prose"],[class~="not-prose"] *)) {
+        color: #111827 !important;
+      }
+      .prose :where(p,li,td,blockquote):not(:where([class~="not-prose"],[class~="not-prose"] *)) {
+        color: #374151 !important;
+      }
+      svg {
+        max-width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="report-print-document">${reportHtml}</main>
+  </body>
+</html>`;
 
 /**
  * Markdown report drawer component
@@ -27,9 +108,14 @@ export const ReportMarkdown: React.FC<ReportMarkdownProps> = ({
   stockCode,
   onClose,
   reportLanguage = 'zh',
+  details,
 }) => {
-  const text = getReportText(normalizeReportLanguage(reportLanguage));
+  const normalizedLanguage = normalizeReportLanguage(reportLanguage);
+  const text = getReportText(normalizedLanguage);
   const loadReportFailedText = text.loadReportFailed;
+  const savePdfText = normalizedLanguage === 'en' ? 'Save as PDF' : '\u4fdd\u5b58 PDF';
+  const shouldShowCompanyProfile = hasCompanyProfileValue(details);
+  const shouldShowBusinessModel = hasBusinessModelValue(details);
   const [content, setContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +153,32 @@ export const ReportMarkdown: React.FC<ReportMarkdownProps> = ({
       console.error('Copy failed:', error);
     }
   }, [content]);
+
+  const handleSavePdf = useCallback(() => {
+    if (!content || typeof window.print !== 'function') {
+      return;
+    }
+    const reportElement = document.querySelector<HTMLElement>('[data-report-print-root]');
+    const printWindow = window.open('', '_blank', 'width=900,height=1200');
+    if (!reportElement || !printWindow) {
+      window.print();
+      return;
+    }
+
+    printWindow.document.write(buildPrintDocument(stockName || stockCode, reportElement.outerHTML));
+    printWindow.document.close();
+
+    const printReport = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+
+    if (printWindow.document.readyState === 'complete') {
+      window.setTimeout(printReport, 100);
+    } else {
+      printWindow.addEventListener('load', printReport, { once: true });
+    }
+  }, [content, stockCode, stockName]);
 
   useEffect(() => {
     let isMounted = true;
@@ -106,7 +218,7 @@ export const ReportMarkdown: React.FC<ReportMarkdownProps> = ({
       backdropClassName="bg-background/56 backdrop-blur-[2px]"
     >
       {/* Custom Header */}
-      <div className="flex items-center justify-between gap-3 mb-4">
+      <div className="flex items-center justify-between gap-3 mb-4 print:hidden">
         {/* Left: Icon + Title */}
         <div className="flex items-center gap-3 flex-1">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--home-action-report-bg)] text-[var(--home-action-report-text)]">
@@ -122,6 +234,21 @@ export const ReportMarkdown: React.FC<ReportMarkdownProps> = ({
 
         {/* Right: Toolbar */}
         <div className="flex items-center gap-2">
+          {/* Save PDF button */}
+          <Tooltip content={savePdfText}>
+            <span className="inline-flex">
+              <button
+                type="button"
+                onClick={handleSavePdf}
+                disabled={isLoading || !content}
+                className="home-surface-button flex h-10 w-10 items-center justify-center rounded-lg text-secondary-text hover:text-foreground disabled:opacity-50"
+                aria-label={savePdfText}
+              >
+                <FileDown className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </span>
+          </Tooltip>
+
           {/* Copy Markdown button */}
           <Tooltip content={text.copyMarkdownSource}>
             <span className="inline-flex">
@@ -193,32 +320,63 @@ export const ReportMarkdown: React.FC<ReportMarkdownProps> = ({
           </button>
         </div>
       ) : (
-        <div
-          className="home-markdown-prose prose prose-invert prose-sm max-w-none
-            prose-headings:text-foreground prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2
-            prose-h1:text-xl
-            prose-h2:text-lg
-            prose-h3:text-base
-            prose-p:leading-relaxed prose-p:mb-3 prose-p:last:mb-0
-            prose-strong:text-foreground prose-strong:font-semibold
-            prose-ul:my-2 prose-ol:my-2 prose-li:my-1
-            prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
-            prose-pre:border
-            prose-table:border-collapse
-            prose-hr:my-4
-            prose-a:no-underline hover:prose-a:underline
-            prose-blockquote:text-secondary-text
-            whitespace-pre-line break-words
-          "
-        >
-          <Markdown remarkPlugins={[remarkGfm]}>
-            {content}
-          </Markdown>
+        <div className="space-y-5" data-report-print-root>
+          <div className="hidden print:block">
+            <h1 className="text-xl font-semibold text-foreground">{stockName || stockCode}</h1>
+            <p className="text-sm text-muted-text">{text.fullReport}</p>
+          </div>
+          {shouldShowCompanyProfile ? (
+            <CompanyProfileSection
+              details={details}
+              language={normalizedLanguage}
+              className="home-divider rounded-xl border border-subtle bg-surface/50 p-4"
+            />
+          ) : null}
+          {shouldShowBusinessModel ? (
+            <BusinessModelSection
+              details={details}
+              language={normalizedLanguage}
+              className="home-divider rounded-xl border border-subtle bg-surface/50 p-4"
+            />
+          ) : null}
+          <FinancialRevenueGrowthSection
+            financialReport={details?.financialReport}
+            language={normalizedLanguage}
+            compact
+          />
+          <FinancialProfitabilitySection
+            financialReport={details?.financialReport}
+            profitabilityAnalysis={details?.profitabilityAnalysis}
+            language={normalizedLanguage}
+            compact
+          />
+          <div
+            className="home-markdown-prose prose prose-invert prose-sm max-w-none
+              prose-headings:text-foreground prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2
+              prose-h1:text-xl
+              prose-h2:text-lg
+              prose-h3:text-base
+              prose-p:leading-relaxed prose-p:mb-3 prose-p:last:mb-0
+              prose-strong:text-foreground prose-strong:font-semibold
+              prose-ul:my-2 prose-ol:my-2 prose-li:my-1
+              prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+              prose-pre:border
+              prose-table:border-collapse
+              prose-hr:my-4
+              prose-a:no-underline hover:prose-a:underline
+              prose-blockquote:text-secondary-text
+              whitespace-pre-line break-words
+            "
+          >
+            <Markdown remarkPlugins={[remarkGfm]}>
+              {content}
+            </Markdown>
+          </div>
         </div>
       )}
 
       {/* Footer */}
-      <div className="home-divider mt-6 flex justify-end border-t pt-4">
+      <div className="home-divider mt-6 flex justify-end border-t pt-4 print:hidden">
         <button
           type="button"
           onClick={handleClose}

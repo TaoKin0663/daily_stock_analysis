@@ -126,7 +126,7 @@ const LoginPage: React.FC = () => {
                   appearance="login"
                   iconType="none"
                   label="用户名"
-                  placeholder="admin 或已注册用户名"
+                  placeholder="用户名"
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
                   disabled={isSubmitting}

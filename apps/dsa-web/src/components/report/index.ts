@@ -4,3 +4,6 @@ export * from './ReportStrategy';
 export * from './ReportNews';
 export * from './ReportDetails';
 export * from './ReportMarkdown';
+export * from './FinancialRevenueGrowthSection';
+export * from './FinancialProfitabilitySection';
+export * from './BusinessModelSection';

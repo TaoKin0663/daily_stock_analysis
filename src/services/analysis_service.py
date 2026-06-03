@@ -170,6 +170,8 @@ class AnalysisService:
                 "news_summary": result.news_summary,
                 "technical_analysis": result.technical_analysis,
                 "fundamental_analysis": result.fundamental_analysis,
+                "business_model": getattr(result, "business_model", None),
+                "profitability_analysis": getattr(result, "profitability_analysis", None),
                 "risk_warning": result.risk_warning,
             }
         }

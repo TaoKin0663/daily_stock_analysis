@@ -327,14 +327,27 @@ def get_history_detail(
             context_snapshot=result.get("context_snapshot"),
             fallback_fundamental_payload=fallback_fundamental,
         )
+        raw_result = result.get("raw_result")
+        business_model = (
+            raw_result.get("business_model")
+            if isinstance(raw_result, dict)
+            else None
+        )
+        profitability_analysis = (
+            raw_result.get("profitability_analysis")
+            if isinstance(raw_result, dict)
+            else None
+        )
 
         details = ReportDetails(
             news_content=result.get("news_content"),
-            raw_result=result.get("raw_result"),
+            raw_result=raw_result,
             context_snapshot=result.get("context_snapshot"),
             financial_report=extracted_fundamental.get("financial_report"),
             dividend_metrics=extracted_fundamental.get("dividend_metrics"),
             company_profile=company_profile,
+            business_model=business_model,
+            profitability_analysis=profitability_analysis,
             belong_boards=extracted_boards.get("belong_boards"),
             sector_rankings=extracted_boards.get("sector_rankings"),
         )

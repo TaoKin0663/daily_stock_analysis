@@ -91,13 +91,40 @@ def _normalize_code(raw: Any) -> str:
     return s
 
 
+def _a_share_secu_code_candidates(raw: Any) -> List[str]:
+    text = _safe_str(raw).upper()
+    normalized = _normalize_code(text)
+    candidates: List[str] = []
+
+    if re.fullmatch(r"\d{6}\.(SH|SZ|BJ)", text):
+        candidates.append(text)
+    elif re.fullmatch(r"(SH|SZ|BJ)\d{6}", text):
+        candidates.append(f"{text[2:]}.{text[:2]}")
+
+    if re.fullmatch(r"\d{6}", normalized):
+        if normalized.startswith(("6", "9")):
+            candidates.append(f"{normalized}.SH")
+        elif normalized.startswith(("0", "2", "3")):
+            candidates.append(f"{normalized}.SZ")
+        elif normalized.startswith(("4", "8")):
+            candidates.append(f"{normalized}.BJ")
+        candidates.append(normalized)
+
+    unique_candidates: List[str] = []
+    for candidate in candidates:
+        if candidate and candidate not in unique_candidates:
+            unique_candidates.append(candidate)
+    return unique_candidates or [text]
+
+
 def _pick_by_keywords(row: pd.Series, keywords: List[str]) -> Optional[Any]:
     """
     Return first non-empty row value whose column name contains any keyword.
     """
     for col in row.index:
         col_s = str(col)
-        if any(k in col_s for k in keywords):
+        col_upper = col_s.upper()
+        if any(k in col_s or str(k).upper() in col_upper for k in keywords):
             val = row.get(col)
             if val is not None and str(val).strip() not in ("", "-", "nan", "None"):
                 return val
@@ -163,6 +190,109 @@ def _filter_rows_by_code(df: pd.DataFrame, stock_code: str) -> pd.DataFrame:
 def _normalize_report_date(value: Any) -> Optional[str]:
     parsed = _safe_datetime(value)
     return parsed.date().isoformat() if parsed else None
+
+
+def _annual_lrb_dates(max_years: int = 8) -> List[str]:
+    # Annual reports for the current calendar year are not available before year-end.
+    latest_possible_year = datetime.now().year - 1
+    return [
+        f"{year}1231"
+        for year in range(latest_possible_year, latest_possible_year - max(1, max_years), -1)
+    ]
+
+
+def _extract_year_from_report_date(value: Any) -> Optional[int]:
+    parsed = _safe_datetime(value)
+    if parsed is not None:
+        return parsed.year
+    text = _safe_str(value)
+    match = re.search(r"(20\d{2}|19\d{2})", text)
+    if match:
+        try:
+            return int(match.group(1))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _build_revenue_growth_payload(rows: List[Dict[str, Any]], max_rows: int = 5) -> Dict[str, Any]:
+    normalized_rows: List[Dict[str, Any]] = []
+    seen_years = set()
+    for row in rows:
+        year = row.get("fiscal_year")
+        revenue = _safe_float(row.get("revenue"))
+        if year is None or revenue is None:
+            continue
+        try:
+            year_int = int(year)
+        except (TypeError, ValueError):
+            continue
+        if year_int in seen_years:
+            continue
+        seen_years.add(year_int)
+        normalized_rows.append(
+            {
+                "fiscal_year": year_int,
+                "report_date": row.get("report_date"),
+                "revenue": revenue,
+                "revenue_yoy": _safe_float(row.get("revenue_yoy")),
+                "announcement_date": row.get("announcement_date"),
+            }
+        )
+
+    normalized_rows.sort(key=lambda item: int(item.get("fiscal_year") or 0), reverse=True)
+    normalized_rows = normalized_rows[:max(1, max_rows)]
+    if not normalized_rows:
+        return {}
+    return {
+        "rows": normalized_rows,
+        "unit": "yuan",
+        "frequency": "annual",
+        "source": "stock_lrb_em",
+    }
+
+
+def _build_profitability_payload(rows: List[Dict[str, Any]], max_rows: int = 5) -> Dict[str, Any]:
+    normalized_rows: List[Dict[str, Any]] = []
+    seen_periods = set()
+    for row in rows:
+        period = _safe_str(row.get("period") or row.get("report_date"))
+        report_date = _normalize_report_date(row.get("report_date") or period)
+        if not period and report_date:
+            period = report_date
+        if not period:
+            continue
+
+        gross_margin = _safe_float(row.get("gross_margin"))
+        net_margin = _safe_float(row.get("net_margin"))
+        roe = _safe_float(row.get("roe"))
+        if gross_margin is None and net_margin is None and roe is None:
+            continue
+
+        dedupe_key = report_date or period
+        if dedupe_key in seen_periods:
+            continue
+        seen_periods.add(dedupe_key)
+        normalized_rows.append(
+            {
+                "period": period,
+                "report_date": report_date,
+                "gross_margin": gross_margin,
+                "net_margin": net_margin,
+                "roe": roe,
+            }
+        )
+
+    normalized_rows.sort(key=lambda item: item.get("report_date") or item.get("period") or "", reverse=True)
+    normalized_rows = normalized_rows[:max(1, max_rows)]
+    if not normalized_rows:
+        return {}
+    return {
+        "rows": normalized_rows,
+        "unit": "percent",
+        "frequency": "report_period",
+        "source": "stock_financial_analysis_indicator_em",
+    }
 
 
 def _build_dividend_payload(
@@ -289,6 +419,229 @@ class AkshareFundamentalAdapter:
                 continue
         return None, None, errors
 
+    def _fetch_annual_revenue_growth(self, stock_code: str, max_rows: int = 5) -> Tuple[Dict[str, Any], List[str]]:
+        rows: List[Dict[str, Any]] = []
+        errors: List[str] = []
+        try:
+            import akshare as ak
+        except Exception as exc:
+            return {}, [f"import_akshare:{type(exc).__name__}"]
+
+        fn = getattr(ak, "stock_lrb_em", None)
+        if fn is None:
+            return {}, ["stock_lrb_em:not_available"]
+
+        target = _normalize_code(stock_code)
+        for report_date in _annual_lrb_dates(max_years=max_rows + 3):
+            if len(rows) >= max_rows:
+                break
+            try:
+                df = fn(date=report_date)
+            except Exception as exc:
+                errors.append(f"stock_lrb_em:{report_date}:{type(exc).__name__}")
+                continue
+            if isinstance(df, pd.Series):
+                df = df.to_frame().T
+            if not isinstance(df, pd.DataFrame) or df.empty:
+                continue
+
+            code_cols = [c for c in df.columns if any(k in str(c) for k in ("股票代码", "代码", "证券代码", "symbol", "ts_code"))]
+            filtered = pd.DataFrame()
+            for col in code_cols:
+                try:
+                    series = df[col].astype(str).map(_normalize_code)
+                    matched = df[series == target]
+                    if not matched.empty:
+                        filtered = matched
+                        break
+                except Exception:
+                    continue
+            if filtered.empty and not code_cols:
+                filtered = _filter_rows_by_code(df, target)
+            if filtered.empty:
+                continue
+            row = filtered.iloc[0]
+            revenue = _safe_float(_pick_by_keywords(row, ["营业总收入", "营业收入", "营收", "钀ヤ笟鎬绘敹鍏", "钀ヤ笟鏀跺叆"]))
+            if revenue is None:
+                continue
+            rows.append(
+                {
+                    "fiscal_year": _extract_year_from_report_date(report_date),
+                    "report_date": _normalize_report_date(report_date),
+                    "revenue": revenue,
+                    "revenue_yoy": _safe_float(
+                        _pick_by_keywords(row, ["营业总收入同比", "营业收入同比", "营收同比", "同比增长", "钀ヤ笟鏀跺叆鍚屾瘮"])
+                    ),
+                    "announcement_date": _normalize_report_date(_pick_by_keywords(row, ["公告日期", "鍏憡鏃ユ湡"])),
+                }
+            )
+
+        return _build_revenue_growth_payload(rows, max_rows=max_rows), errors
+
+    def _fetch_annual_revenue_growth_direct(self, stock_code: str, max_rows: int = 5) -> Tuple[Dict[str, Any], List[str]]:
+        rows: List[Dict[str, Any]] = []
+        errors: List[str] = []
+        target = _normalize_code(stock_code)
+        for report_date in _annual_lrb_dates(max_years=max_rows + 3):
+            if len(rows) >= max_rows:
+                break
+            report_date_iso = f"{report_date[:4]}-{report_date[4:6]}-{report_date[6:8]}"
+            try:
+                import requests
+
+                response = requests.get(
+                    "https://datacenter-web.eastmoney.com/api/data/v1/get",
+                    params={
+                        "sortColumns": "NOTICE_DATE,SECURITY_CODE",
+                        "sortTypes": "-1,-1",
+                        "pageSize": "1",
+                        "pageNumber": "1",
+                        "reportName": "RPT_DMSK_FN_INCOME",
+                        "columns": "ALL",
+                        "filter": (
+                            '(SECURITY_TYPE_CODE in ("058001001","058001008"))'
+                            '(TRADE_MARKET_CODE!="069001017")'
+                            f'(SECURITY_CODE="{target}")'
+                            f"(REPORT_DATE='{report_date_iso}')"
+                        ),
+                    },
+                    timeout=0.5,
+                )
+                response.raise_for_status()
+                payload = response.json()
+            except Exception as exc:
+                errors.append(f"stock_lrb_em_direct:{report_date}:{type(exc).__name__}")
+                continue
+
+            result_obj = payload.get("result") if isinstance(payload, dict) else None
+            data_rows = result_obj.get("data") if isinstance(result_obj, dict) else None
+            if not isinstance(data_rows, list) or not data_rows:
+                continue
+            row = data_rows[0]
+            if not isinstance(row, dict):
+                continue
+            revenue = _safe_float(row.get("TOTAL_OPERATE_INCOME"))
+            if revenue is None:
+                continue
+            rows.append(
+                {
+                    "fiscal_year": _extract_year_from_report_date(report_date),
+                    "report_date": _normalize_report_date(row.get("REPORT_DATE") or report_date_iso),
+                    "revenue": revenue,
+                    "revenue_yoy": _safe_float(row.get("TOI_RATIO")),
+                    "announcement_date": _normalize_report_date(row.get("NOTICE_DATE")),
+                }
+            )
+
+        return _build_revenue_growth_payload(rows, max_rows=max_rows), errors
+
+    def _fetch_profitability_indicators(self, stock_code: str, max_rows: int = 5) -> Tuple[Dict[str, Any], List[str]]:
+        rows: List[Dict[str, Any]] = []
+        errors: List[str] = []
+        try:
+            import akshare as ak
+        except Exception as exc:
+            return {}, [f"import_akshare:{type(exc).__name__}"]
+
+        fn = getattr(ak, "stock_financial_analysis_indicator_em", None)
+        if fn is None:
+            return {}, ["stock_financial_analysis_indicator_em:not_available"]
+
+        df: Optional[pd.DataFrame] = None
+        for symbol in _a_share_secu_code_candidates(stock_code):
+            try:
+                candidate_df = fn(symbol=symbol)
+            except Exception as exc:
+                errors.append(f"stock_financial_analysis_indicator_em:{symbol}:{type(exc).__name__}")
+                continue
+            if isinstance(candidate_df, pd.Series):
+                candidate_df = candidate_df.to_frame().T
+            if isinstance(candidate_df, pd.DataFrame) and not candidate_df.empty:
+                df = candidate_df
+                break
+
+        if not isinstance(df, pd.DataFrame) or df.empty:
+            return {}, errors
+
+        work_df = _filter_rows_by_code(df, stock_code)
+        if work_df.empty:
+            work_df = df
+
+        for _, row in work_df.iterrows():
+            if not isinstance(row, pd.Series):
+                continue
+            report_date_value = _pick_by_keywords(
+                row,
+                [
+                    "日期",
+                    "报告期",
+                    "报告日期",
+                    "截止日期",
+                    "REPORT_DATE",
+                    "report_date",
+                    "date",
+                ],
+            )
+            rows.append(
+                {
+                    "period": _safe_str(report_date_value),
+                    "report_date": report_date_value,
+                    "gross_margin": _safe_float(
+                        _pick_by_keywords(
+                            row,
+                            [
+                                "销售毛利率",
+                                "毛利率",
+                                "GROSS_PROFIT_MARGIN",
+                                "GROSSPROFIT_MARGIN",
+                                "GROSS_PROFIT_RATIO",
+                                "GROSSPROFIT_RATIO",
+                                "GROSS_MARGIN",
+                                "GP_MARGIN",
+                                "XSMLL",
+                                "gross margin",
+                                "gross_margin",
+                            ],
+                        )
+                    ),
+                    "net_margin": _safe_float(
+                        _pick_by_keywords(
+                            row,
+                            [
+                                "销售净利率",
+                                "净利率",
+                                "NET_PROFIT_MARGIN",
+                                "NETPROFIT_MARGIN",
+                                "NET_PROFIT_RATIO",
+                                "NETPROFIT_RATIO",
+                                "NET_MARGIN",
+                                "NP_MARGIN",
+                                "XSJLL",
+                                "net margin",
+                                "net_margin",
+                            ],
+                        )
+                    ),
+                    "roe": _safe_float(
+                        _pick_by_keywords(
+                            row,
+                            [
+                                "净资产收益率",
+                                "ROE",
+                                "WEIGHTAVG_ROE",
+                                "WEIGHTED_ROE",
+                                "ROEJQ",
+                                "ROEKCJQ",
+                                "JQJZCSYL",
+                                "roe",
+                            ],
+                        )
+                    ),
+                }
+            )
+
+        return _build_profitability_payload(rows, max_rows=max_rows), errors
+
     def get_fundamental_bundle(self, stock_code: str) -> Dict[str, Any]:
         """
         Return normalized fundamental blocks from AkShare with partial tolerance.
@@ -301,6 +654,52 @@ class AkshareFundamentalAdapter:
             "source_chain": [],
             "errors": [],
         }
+
+        def _attach_revenue_growth_payload(revenue_growth_payload: Dict[str, Any]) -> None:
+            if not revenue_growth_payload:
+                return
+            financial_report_payload = result["earnings"].get("financial_report")
+            if not isinstance(financial_report_payload, dict):
+                financial_report_payload = {}
+            financial_report_payload["revenue_growth"] = revenue_growth_payload
+            latest_row = revenue_growth_payload.get("rows", [{}])[0]
+            if financial_report_payload.get("report_date") is None:
+                financial_report_payload["report_date"] = latest_row.get("report_date")
+            if financial_report_payload.get("revenue") is None:
+                financial_report_payload["revenue"] = latest_row.get("revenue")
+            if result["growth"].get("revenue_yoy") is None:
+                result["growth"]["revenue_yoy"] = latest_row.get("revenue_yoy")
+            result["earnings"]["financial_report"] = financial_report_payload
+
+        def _attach_profitability_payload(profitability_payload: Dict[str, Any]) -> None:
+            if not profitability_payload:
+                return
+            financial_report_payload = result["earnings"].get("financial_report")
+            if not isinstance(financial_report_payload, dict):
+                financial_report_payload = {}
+            financial_report_payload["profitability"] = profitability_payload
+            latest_row = profitability_payload.get("rows", [{}])[0]
+            if financial_report_payload.get("report_date") is None:
+                financial_report_payload["report_date"] = latest_row.get("report_date")
+            if financial_report_payload.get("roe") is None:
+                financial_report_payload["roe"] = latest_row.get("roe")
+            if result["growth"].get("roe") is None:
+                result["growth"]["roe"] = latest_row.get("roe")
+            if result["growth"].get("gross_margin") is None:
+                result["growth"]["gross_margin"] = latest_row.get("gross_margin")
+            result["earnings"]["financial_report"] = financial_report_payload
+
+        revenue_growth_payload, revenue_growth_errors = self._fetch_annual_revenue_growth_direct(stock_code, max_rows=5)
+        result["errors"].extend(revenue_growth_errors)
+        if revenue_growth_payload:
+            _attach_revenue_growth_payload(revenue_growth_payload)
+            result["source_chain"].append("revenue_growth:stock_lrb_em")
+
+        profitability_payload, profitability_errors = self._fetch_profitability_indicators(stock_code, max_rows=5)
+        result["errors"].extend(profitability_errors)
+        if profitability_payload:
+            _attach_profitability_payload(profitability_payload)
+            result["source_chain"].append("profitability:stock_financial_analysis_indicator_em")
 
         # Financial indicators
         fin_df, fin_source, fin_errors = self._call_df_candidates([
@@ -335,9 +734,22 @@ class AkshareFundamentalAdapter:
                     "operating_cash_flow": operating_cash_flow,
                     "roe": roe,
                 }
+                existing_financial_report = result["earnings"].get("financial_report")
+                if isinstance(existing_financial_report, dict) and existing_financial_report.get("revenue_growth"):
+                    financial_report_payload["revenue_growth"] = existing_financial_report.get("revenue_growth")
+                if isinstance(existing_financial_report, dict) and existing_financial_report.get("profitability"):
+                    financial_report_payload["profitability"] = existing_financial_report.get("profitability")
                 if any(v is not None for v in financial_report_payload.values()):
                     result["earnings"]["financial_report"] = financial_report_payload
                 result["source_chain"].append(f"growth:{fin_source}")
+
+        financial_report_payload = result["earnings"].get("financial_report")
+        if not isinstance(financial_report_payload, dict) or not financial_report_payload.get("revenue_growth"):
+            revenue_growth_payload, revenue_growth_errors = self._fetch_annual_revenue_growth_direct(stock_code, max_rows=5)
+            result["errors"].extend(revenue_growth_errors)
+            if revenue_growth_payload:
+                _attach_revenue_growth_payload(revenue_growth_payload)
+                result["source_chain"].append("revenue_growth:stock_lrb_em")
 
         # Earnings forecast
         forecast_df, forecast_source, forecast_errors = self._call_df_candidates([

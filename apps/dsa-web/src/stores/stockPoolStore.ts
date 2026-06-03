@@ -58,6 +58,7 @@ export interface StockPoolState {
   refreshHistory: (silent?: boolean) => Promise<void>;
   loadMoreHistory: () => Promise<void>;
   selectHistoryItem: (recordId: number) => Promise<void>;
+  selectLatestHistoryItem: () => Promise<void>;
   toggleHistorySelection: (recordId: number) => void;
   toggleSelectAllVisible: () => void;
   deleteSelectedHistory: () => Promise<void>;
@@ -240,6 +241,14 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
         isLoadingReport: false,
       });
     }
+  },
+
+  selectLatestHistoryItem: async () => {
+    const latestItem = get().historyItems[0];
+    if (!latestItem) {
+      return;
+    }
+    await get().selectHistoryItem(latestItem.id);
   },
 
   toggleHistorySelection: (recordId) => {

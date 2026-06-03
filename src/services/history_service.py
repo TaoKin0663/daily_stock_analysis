@@ -592,6 +592,8 @@ class HistoryService:
                 fundamental_analysis=raw_result.get("fundamental_analysis", ""),
                 sector_position=raw_result.get("sector_position", ""),
                 company_highlights=raw_result.get("company_highlights", ""),
+                business_model=raw_result.get("business_model"),
+                profitability_analysis=raw_result.get("profitability_analysis"),
                 news_summary=raw_result.get("news_summary", record.news_content or ""),
                 market_sentiment=raw_result.get("market_sentiment", ""),
                 hot_topics=raw_result.get("hot_topics", ""),

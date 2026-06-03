@@ -138,6 +138,8 @@ class AnalysisReportSchema(BaseModel):
     confidence_level: Optional[str] = None
 
     dashboard: Optional[Dashboard] = None
+    business_model: Optional[Dict[str, Any]] = None
+    profitability_analysis: Optional[Dict[str, Any]] = None
 
     analysis_summary: Optional[str] = None
     key_points: Optional[str] = None

@@ -175,6 +175,72 @@ class TestFundamentalContext(unittest.TestCase):
         self.assertIn("capital_flow", ctx)
         self.assertIn("dragon_tiger", ctx)
 
+    def test_fundamental_context_preserves_revenue_growth_and_profitability(self) -> None:
+        manager = DataFetcherManager(fetchers=[])
+        cfg = SimpleNamespace(
+            enable_fundamental_pipeline=True,
+            fundamental_cache_ttl_seconds=0,
+            fundamental_stage_timeout_seconds=2.0,
+            fundamental_fetch_timeout_seconds=0.8,
+            fundamental_retry_max=1,
+        )
+        revenue_growth = {
+            "rows": [
+                {
+                    "fiscal_year": 2025,
+                    "report_date": "2025-12-31",
+                    "revenue": 15000000000.0,
+                    "revenue_yoy": 12.5,
+                }
+            ],
+            "unit": "yuan",
+            "frequency": "annual",
+            "source": "stock_lrb_em",
+        }
+        profitability = {
+            "rows": [
+                {
+                    "period": "2025-12-31",
+                    "report_date": "2025-12-31",
+                    "gross_margin": 42.61,
+                    "net_margin": 28.2,
+                    "roe": 43.84,
+                }
+            ],
+            "unit": "percent",
+            "frequency": "report_period",
+            "source": "stock_financial_analysis_indicator_em",
+        }
+
+        with patch("src.config.get_config", return_value=cfg), \
+                patch.object(manager, "get_company_profile_context", return_value={"status": "not_supported"}), \
+                patch.object(manager, "get_realtime_quote", return_value=None), \
+                patch(
+                    "data_provider.fundamental_adapter.AkshareFundamentalAdapter._fetch_annual_revenue_growth_direct",
+                    return_value=(revenue_growth, []),
+                ), \
+                patch(
+                    "data_provider.fundamental_adapter.AkshareFundamentalAdapter._fetch_profitability_indicators",
+                    return_value=(profitability, []),
+                ), \
+                patch("data_provider.fundamental_adapter.AkshareFundamentalAdapter.get_fundamental_bundle", return_value={
+                    "growth": {},
+                    "earnings": {},
+                    "institution": {},
+                    "source_chain": [],
+                    "errors": [],
+                }), \
+                patch.object(manager, "get_capital_flow_context", return_value={"status": "partial", "source_chain": []}), \
+                patch.object(manager, "get_dragon_tiger_context", return_value={"status": "partial", "source_chain": []}), \
+                patch.object(manager, "get_board_context", return_value={"status": "partial", "source_chain": []}):
+            ctx = manager.get_fundamental_context("600519", budget_seconds=2.0)
+
+        financial_report = ctx["earnings"]["data"]["financial_report"]
+        self.assertEqual(financial_report["revenue_growth"], revenue_growth)
+        self.assertEqual(financial_report["profitability"], profitability)
+        self.assertEqual(financial_report["revenue"], 15000000000.0)
+        self.assertEqual(financial_report["roe"], 43.84)
+
     def test_cn_company_profile_uses_cninfo_as_primary_source(self) -> None:
         manager = DataFetcherManager(fetchers=[])
         cfg = SimpleNamespace(

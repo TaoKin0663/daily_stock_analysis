@@ -814,9 +814,19 @@ def _build_analysis_report(
         context_snapshot=context_snapshot,
         fallback_fundamental_payload=fallback_fundamental_payload,
     )
+    business_model = details_data.get("business_model") or report_data.get("business_model")
+    profitability_analysis = details_data.get("profitability_analysis") or report_data.get("profitability_analysis")
     details = None
     has_board_details = bool(extracted_boards.get("belong_boards")) or extracted_boards.get("sector_rankings") is not None
-    if details_data or any(extracted_fundamental.values()) or company_profile or has_board_details or context_snapshot is not None:
+    if (
+        details_data
+        or any(extracted_fundamental.values())
+        or company_profile
+        or business_model
+        or profitability_analysis
+        or has_board_details
+        or context_snapshot is not None
+    ):
         details = ReportDetails(
             news_content=details_data.get("news_summary") or details_data.get("news_content"),
             raw_result=details_data,
@@ -824,6 +834,8 @@ def _build_analysis_report(
             financial_report=extracted_fundamental.get("financial_report"),
             dividend_metrics=extracted_fundamental.get("dividend_metrics"),
             company_profile=company_profile,
+            business_model=business_model,
+            profitability_analysis=profitability_analysis,
             belong_boards=extracted_boards.get("belong_boards"),
             sector_rankings=extracted_boards.get("sector_rankings"),
         )

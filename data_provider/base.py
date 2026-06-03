@@ -631,15 +631,16 @@ class DataFetcherManager:
     def _get_fundamental_cache_key(self, stock_code: str, budget_seconds: Optional[float] = None) -> str:
         """生成基本面缓存 key（包含预算分桶以避免低预算结果污染高预算请求）。"""
         normalized_code = normalize_stock_code(stock_code)
+        schema_version = "fin-report-v2"
         if budget_seconds is None:
-            return f"{normalized_code}|budget=default"
+            return f"{normalized_code}|budget=default|schema={schema_version}"
         try:
             budget = max(0.0, float(budget_seconds))
         except (TypeError, ValueError):
             budget = 0.0
         # 100ms bucket to balance cache reuse and scenario isolation.
         budget_bucket = int(round(budget * 10))
-        return f"{normalized_code}|budget={budget_bucket}"
+        return f"{normalized_code}|budget={budget_bucket}|schema={schema_version}"
 
     def _prune_fundamental_cache(self, ttl_seconds: int, max_entries: int) -> None:
         """Prune expired and overflow fundamental cache items."""
@@ -2452,14 +2453,14 @@ class DataFetcherManager:
             [valuation_err] if valuation_err else [],
         )
 
-        # growth / earnings / institution (one AkShare call)
+        # growth / earnings / institution — 由 get_fundamental_bundle() 统一获取，包含 revenue_growth 和 profitability
         if remaining_seconds <= 0:
             bundle_status = "failed"
             bundle_payload: Dict[str, Any] = {}
             bundle_errors = ["fundamental stage timeout"]
             bundle_ms = 0
         else:
-            bundle_timeout = min(fetch_timeout, remaining_seconds)
+            bundle_timeout = remaining_seconds  # bundle 内部有多个串行 API 调用，不应用 fetch_timeout 单次上限
             bundle_payload, bundle_err_msg, bundle_ms = self._run_with_retry(
                 lambda: self._fundamental_adapter.get_fundamental_bundle(stock_code),
                 bundle_timeout,

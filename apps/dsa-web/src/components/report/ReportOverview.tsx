@@ -1,4 +1,4 @@
-import type React from 'react';
+﻿import type React from 'react';
 import type {
   ReportDetails as ReportDetailsType,
   ReportMeta,
@@ -7,9 +7,11 @@ import type {
 import { Badge, ScoreGauge } from '../common';
 import { Card } from '@heroui/react/card';
 import { Separator } from "@heroui/react";
-import { Building2, ExternalLink, FileText, UsersRound } from 'lucide-react';
 import { formatDateTime } from '../../utils/format';
+import { hasBusinessModelValue } from '../../utils/businessModel';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
+import { BusinessModelSection } from './BusinessModelSection';
+import { CompanyProfileSection } from './CompanyProfileSection';
 
 interface ReportOverviewProps {
   meta: ReportMeta;
@@ -82,17 +84,6 @@ const getIndustryFromBoards = (details?: ReportDetailsType): string | undefined 
   return normalizeBoardName(industryBoard?.name) || undefined;
 };
 
-const normalizeWebsiteHref = (value?: string): string | undefined => {
-  const website = (value || '').trim();
-  if (!website) {
-    return undefined;
-  }
-  if (/^https?:\/\//i.test(website)) {
-    return website;
-  }
-  return `https://${website}`;
-};
-
 const hasCompanyProfileValue = (details?: ReportDetailsType): boolean => {
   const profile = details?.companyProfile;
   if (!profile) {
@@ -118,7 +109,7 @@ const hasCompanyProfileValue = (details?: ReportDetailsType): boolean => {
 };
 
 /**
- * 报告概览区组件 - 终端风格
+ * 鎶ュ憡姒傝鍖虹粍浠?- 缁堢椋庢牸
  */
 export const ReportOverview: React.FC<ReportOverviewProps> = ({
   meta,
@@ -131,14 +122,8 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
     .filter((board) => normalizeBoardName(board?.name).length > 0)
     .slice(0, 3);
   const boardSignals = buildBoardSignalMap(details);
-  const profile = details?.companyProfile;
-  const fallbackIndustry = getIndustryFromBoards(details);
-  const websiteHref = normalizeWebsiteHref(profile?.website);
-  if (import.meta.env.DEV) {
-    console.debug('[ReportOverview] companyProfile', profile ?? null);
-  }
   const shouldShowCompanyBasics = hasCompanyProfileValue(details);
-  const companyIntro = profile?.companyIntro || profile?.mainBusiness || profile?.businessScope;
+  const shouldShowBusinessModel = hasBusinessModelValue(details);
 
   const getPriceChangeStyle = (changePct: number | undefined): React.CSSProperties | undefined => {
     if (changePct === undefined || changePct === null) {
@@ -162,45 +147,6 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
     return `${sign}${changePct.toFixed(2)}%`;
   };
 
-  const formatCount = (value: number | undefined): string => {
-    if (value === undefined || value === null || !Number.isFinite(value)) {
-      return '--';
-    }
-    return new Intl.NumberFormat(reportLanguage === 'en' ? 'en-US' : 'zh-CN', {
-      notation: 'compact',
-      maximumFractionDigits: 2,
-    }).format(value);
-  };
-
-  const companyBasics = [
-    { label: text.fullName, value: profile?.fullName || '--' },
-    { label: text.industry, value: profile?.industry || fallbackIndustry || '--' },
-    { label: text.listingDate, value: profile?.listingDate || '--' },
-    { label: text.totalShareCapital, value: formatCount(profile?.totalShareCapital) },
-    { label: text.floatShareCapital, value: formatCount(profile?.floatShareCapital) },
-    { label: text.employeeCount, value: formatCount(profile?.employeeCount) },
-  ];
-  const formatRatio = (value: number | undefined): string | undefined => {
-    if (value === undefined || value === null || !Number.isFinite(value)) {
-      return undefined;
-    }
-    return `${value.toFixed(2).replace(/\.?0+$/, '')}%`;
-  };
-  const actualControllerText = profile?.actualController
-    ? [
-      profile.actualController,
-      formatRatio(profile.actualControllerHoldRatio)
-        ? `(${text.holdRatioApprox}${formatRatio(profile.actualControllerHoldRatio)})`
-        : undefined,
-    ].filter(Boolean).join(' ')
-    : '--';
-  const coreManagement = [
-    { label: text.legalRepresentative, value: profile?.legalRepresentative || '--' },
-    { label: text.actualController, value: actualControllerText },
-    { label: text.directController, value: profile?.directController || '--' },
-    { label: text.controlType, value: profile?.controlType || '--' },
-  ];
-
   const getBoardStatusLabel = (status: BoardStatus): string => {
     if (status === 'leading') {
       return text.leadingBoard;
@@ -217,11 +163,11 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
 
   return (
     <div className="space-y-5">
-      {/* 主信息区 - 两列布局，items-stretch 确保右侧与左侧同高 */}
+      {/* 涓讳俊鎭尯 - 涓ゅ垪甯冨眬锛宨tems-stretch 纭繚鍙充晶涓庡乏渚у悓楂?*/}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
-        {/* 左侧：股票信息与结论 */}
+        {/* 宸︿晶锛氳偂绁ㄤ俊鎭笌缁撹 */}
         <div className="lg:col-span-2 space-y-5">
-          {/* 股票头部 */}
+          {/* 鑲＄エ澶撮儴 */}
           <Card>
             <Card.Content className="space-y-5">
               <div className="flex items-start justify-between">
@@ -255,95 +201,18 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
                 </div>
               </div>
               <Separator />
-              {shouldShowCompanyBasics && (
+              {(shouldShowCompanyBasics || shouldShowBusinessModel) && (
                 <>
-                  <div>
-                    <div className="mb-3 flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-default-500" aria-hidden="true" />
-                      <Card.Title className="text-xs font-medium uppercase tracking-wider text-default-500">
-                        {text.companyBasics}
-                      </Card.Title>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {companyBasics.map((item) => (
-                        <div
-                          key={item.label}
-                          className="min-w-0 rounded-lg bg-default-50 px-3 py-2.5"
-                        >
-                          <div className="text-[11px] font-medium uppercase tracking-wide text-default-500">
-                            {item.label}
-                          </div>
-                          <div className="mt-1 truncate text-sm font-medium text-foreground" title={item.value}>
-                            {item.value}
-                          </div>
-                        </div>
-                      ))}
-                      <div className="min-w-0 rounded-lg bg-default-50 px-3 py-2.5">
-                        <div className="text-[11px] font-medium uppercase tracking-wide text-default-500">
-                          {text.website}
-                        </div>
-                        {profile?.website && websiteHref ? (
-                          <a
-                            href={websiteHref}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-1 inline-flex max-w-full items-center gap-1 text-sm font-medium text-primary hover:text-primary-600"
-                            title={profile.website}
-                          >
-                            <span className="truncate">{profile.website}</span>
-                            <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
-                          </a>
-                        ) : (
-                          <div className="mt-1 text-sm font-medium text-foreground">--</div>
-                        )}
-                      </div>
-                    </div>
-                    {companyIntro && (
-                      <div className="mt-4 rounded-lg bg-default-50 px-3 py-3">
-                        <div className="mb-1.5 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-default-500">
-                          <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                          {text.companyIntro}
-                        </div>
-                        <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
-                          {companyIntro}
-                        </p>
-                      </div>
-                    )}
-                    <div className="mt-4">
-                      <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-default-500">
-                        <UsersRound className="h-3.5 w-3.5" aria-hidden="true" />
-                        {text.coreManagement}
-                      </div>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        {coreManagement.map((item) => (
-                          <div
-                            key={item.label}
-                            className="min-w-0 rounded-lg bg-default-50 px-3 py-2.5"
-                          >
-                            <div className="text-[11px] font-medium uppercase tracking-wide text-default-500">
-                              {item.label}
-                            </div>
-                            <div className="mt-1 truncate text-sm font-medium text-foreground" title={item.value}>
-                              {item.value}
-                            </div>
-                            {/* <Tooltip
-                              delay={0}
-                              closeDelay={0}
-                            >
-                              <Tooltip.Trigger className='w-full'>
-                                <div className="mt-1 truncate text-sm font-medium text-foreground max-w-[200px]">
-                                  {item.value}
-                                </div>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                <p className="text-xs">{item.value}</p>
-                              </Tooltip.Content>
-                            </Tooltip> */}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  {shouldShowCompanyBasics ? (
+                    <CompanyProfileSection details={details} language={reportLanguage} />
+                  ) : null}
+                  {shouldShowBusinessModel ? (
+                    <BusinessModelSection
+                      details={details}
+                      language={reportLanguage}
+                      className={shouldShowCompanyBasics ? 'mt-5 border-t border-subtle pt-5' : ''}
+                    />
+                  ) : null}
                   <Separator />
                 </>
               )}
@@ -358,9 +227,9 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
             </Card.Content>
           </Card>
 
-          {/* 操作建议和趋势预测 */}
+          {/* 鎿嶄綔寤鸿鍜岃秼鍔块娴?*/}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* 操作建议 */}
+            {/* 鎿嶄綔寤鸿 */}
             <Card>
               <Card.Content className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center flex-shrink-0">
@@ -377,7 +246,7 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
               </Card.Content>
             </Card>
 
-            {/* 趋势预测 */}
+            {/* 瓒嬪娍棰勬祴 */}
             <Card>
               <Card.Content className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
@@ -442,7 +311,7 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
           )}
         </div>
 
-        {/* 右侧：情绪指标 */}
+        {/* 鍙充晶锛氭儏缁寚鏍?*/}
         <div className="flex flex-col self-stretch min-h-full">
           <Card className="flex-1 flex flex-col">
             <Card.Content className="flex flex-col items-center justify-center flex-1 p-6">
