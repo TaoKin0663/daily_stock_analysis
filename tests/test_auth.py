@@ -17,10 +17,7 @@ import src.auth as auth
 
 def _reset_auth_globals() -> None:
     """Reset auth module globals for test isolation."""
-    auth._auth_enabled = None
     auth._session_secret = None
-    auth._password_hash_salt = None
-    auth._password_hash_stored = None
     auth._rate_limit = {}
 
 
@@ -82,14 +79,10 @@ class AuthSessionTestCase(unittest.TestCase):
         self.data_dir = Path(self.temp_dir.name)
         self.addCleanup(self.temp_dir.cleanup)
 
-    def _patch_env_and_run(
-        self, auth_enabled: bool = True, test_fn=None
-    ):
-        with patch.object(auth, "_is_auth_enabled_from_env", return_value=auth_enabled):
-            with patch.object(auth, "_get_data_dir", return_value=self.data_dir):
-                auth._auth_enabled = auth_enabled
-                if test_fn:
-                    return test_fn()
+    def _patch_env_and_run(self, test_fn=None):
+        with patch.object(auth, "_get_data_dir", return_value=self.data_dir):
+            if test_fn:
+                return test_fn()
 
     def test_create_session_returns_signed_payload(self) -> None:
         def run():
@@ -195,19 +188,51 @@ class AuthSetPasswordTestCase(unittest.TestCase):
         _reset_auth_globals()
         self.temp_dir = tempfile.TemporaryDirectory()
         self.data_dir = Path(self.temp_dir.name)
+        self.env_path = self.data_dir / ".env"
+        self.env_path.write_text("", encoding="utf-8")
+        self._original_env_file = os.environ.get("ENV_FILE")
+        self._original_database_path = os.environ.get("DATABASE_PATH")
+        self._original_database_url = os.environ.get("DATABASE_URL")
+        os.environ["ENV_FILE"] = str(self.env_path)
+        os.environ["DATABASE_PATH"] = str(self.data_dir / "auth.db")
+        os.environ.pop("DATABASE_URL", None)
+        from src.config import Config
+        from src.storage import DatabaseManager
+
+        Config.reset_instance()
+        DatabaseManager.reset_instance()
         self.addCleanup(self.temp_dir.cleanup)
+        self.addCleanup(self._restore_database_path)
+
+    def _restore_database_path(self) -> None:
+        from src.config import Config
+        from src.storage import DatabaseManager
+
+        DatabaseManager.reset_instance()
+        Config.reset_instance()
+        if self._original_database_path is None:
+            os.environ.pop("DATABASE_PATH", None)
+        else:
+            os.environ["DATABASE_PATH"] = self._original_database_path
+        if self._original_database_url is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = self._original_database_url
+        if self._original_env_file is None:
+            os.environ.pop("ENV_FILE", None)
+        else:
+            os.environ["ENV_FILE"] = self._original_env_file
+        Config.reset_instance()
+        DatabaseManager.reset_instance()
 
     def _run_with_patch(self, fn):
-        with patch.object(auth, "_is_auth_enabled_from_env", return_value=True):
-            with patch.object(auth, "_get_data_dir", return_value=self.data_dir):
-                auth._auth_enabled = True
-                return fn()
+        with patch.object(auth, "_get_data_dir", return_value=self.data_dir):
+            return fn()
 
     def test_set_initial_password_success(self) -> None:
         def run():
             err = auth.set_initial_password("password123")
             self.assertIsNone(err)
-            self.assertIsNotNone(auth._password_hash_stored)
             self.assertTrue(auth.is_password_set())
             self.assertTrue(auth.verify_password("password123"))
 
@@ -219,7 +244,6 @@ class AuthSetPasswordTestCase(unittest.TestCase):
             self.assertIsNone(err)
             self.assertTrue(auth.has_stored_password())
 
-            auth._auth_enabled = False
             self.assertTrue(auth.has_stored_password())
             self.assertTrue(auth.is_password_set())
 
@@ -230,19 +254,10 @@ class AuthSetPasswordTestCase(unittest.TestCase):
             err = auth.set_initial_password("password123")
             self.assertIsNone(err)
 
-            auth._auth_enabled = False
             self.assertTrue(auth.verify_stored_password("password123"))
             self.assertFalse(auth.verify_stored_password("wrongpass"))
 
         self._run_with_patch(run)
-
-    def test_is_auth_enabled_from_env_respects_env_file(self) -> None:
-        custom_env = self.data_dir / "custom.env"
-        custom_env.write_text("ADMIN_AUTH_ENABLED=true\n", encoding="utf-8")
-
-        with patch.dict(os.environ, {"ENV_FILE": str(custom_env)}):
-            auth._auth_enabled = None
-            self.assertTrue(auth._is_auth_enabled_from_env())
 
     def test_refresh_auth_state_clears_session_secret_cache(self) -> None:
         def run():

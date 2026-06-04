@@ -315,13 +315,7 @@ sudo systemctl reload nginx
 
 ## 安全建议
 
-Web 界面始终启用登录密码保护。`ADMIN_AUTH_ENABLED` 仅保留为旧环境兼容字段：
-
-```env
-ADMIN_AUTH_ENABLED=true
-```
-
-第一次访问网页时会要求设置初始密码。设置完成后，每次访问 Web 和管理后台都需要登录，可以防止 API Key 等敏感配置被他人看到。
+Web 界面始终启用登录密码保护。第一次访问网页时会要求设置初始密码。设置完成后，每次访问 Web 和管理后台都需要登录，可以防止 API Key 等敏感配置被他人看到。
 
 > 如果忘了密码，可以在服务器上执行：`python -m src.auth reset_password`
 

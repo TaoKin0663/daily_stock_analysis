@@ -853,7 +853,26 @@ class Config:
             from src.storage import DatabaseManager
             instance = getattr(DatabaseManager, "_instance", None)
             if instance is not None and getattr(instance, "_initialized", False):
-                db_config = DatabaseManager.get_instance().get_system_config_map()
+                db = DatabaseManager.get_instance()
+                db_config = db.get_system_config_map()
+                try:
+                    from src.user_context import get_current_user, get_current_user_id
+
+                    current_user = get_current_user()
+                    current_user_id = get_current_user_id()
+                    if (
+                        current_user_id is not None
+                        and getattr(current_user, "account_type", "web") not in {"admin", "system"}
+                    ):
+                        user_config = db.get_user_config_map(int(current_user_id))
+                        allowed = {
+                            str(key).upper()
+                            for key in (getattr(current_user, "setting_permissions", ()) or ())
+                        }
+                        for key in allowed:
+                            db_config[key] = user_config.get(key, "")
+                except Exception:
+                    pass
                 os.environ.update(db_config)
         except Exception:
             pass
@@ -2452,14 +2471,19 @@ def get_config() -> Config:
                 instance = getattr(DatabaseManager, "_instance", None)
                 if instance is None or not getattr(instance, "_initialized", False):
                     return Config.get_instance()
-                overrides = DatabaseManager.get_instance().get_user_config_map(int(user_id))
-                os.environ.update({key: value for key, value in overrides.items()})
+                db = DatabaseManager.get_instance()
+                system_config = db.get_system_config_map()
+                overrides = db.get_user_config_map(int(user_id))
                 # 用户有权限设置但未覆盖的 key → 清除平台 fallback，回退到代码默认值
                 current_user = get_current_user()
-                if current_user and current_user.setting_permissions:
-                    for key in current_user.setting_permissions:
-                        if key not in overrides:
-                            os.environ.pop(key, None)
+                allowed = {
+                    str(key).upper()
+                    for key in (getattr(current_user, "setting_permissions", ()) or ())
+                }
+                effective = dict(system_config)
+                for key in allowed:
+                    effective[key] = overrides.get(key, "")
+                os.environ.update(effective)
                 cfg = Config._load_from_env()
                 _USER_CONFIG_CACHE[int(user_id)] = cfg
                 return cfg

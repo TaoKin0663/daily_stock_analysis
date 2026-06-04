@@ -1559,9 +1559,21 @@ class GeminiAnalyzer:
             if isinstance(earnings_data, dict)
             else {}
         )
-        if isinstance(financial_report, dict) or isinstance(dividend_metrics, dict):
-            financial_report = financial_report if isinstance(financial_report, dict) else {}
-            dividend_metrics = dividend_metrics if isinstance(dividend_metrics, dict) else {}
+        financial_report = financial_report if isinstance(financial_report, dict) else {}
+        dividend_metrics = dividend_metrics if isinstance(dividend_metrics, dict) else {}
+
+        def _has_meaningful_financial_value(value: Any) -> bool:
+            if value is None:
+                return False
+            if isinstance(value, str):
+                return bool(value.strip()) and value.strip().upper() != "N/A"
+            if isinstance(value, dict):
+                return any(_has_meaningful_financial_value(item) for item in value.values())
+            if isinstance(value, (list, tuple)):
+                return any(_has_meaningful_financial_value(item) for item in value)
+            return True
+
+        if _has_meaningful_financial_value(financial_report) or _has_meaningful_financial_value(dividend_metrics):
             ttm_yield = dividend_metrics.get("ttm_dividend_yield_pct", "N/A")
             ttm_cash = dividend_metrics.get("ttm_cash_dividend_per_share", "N/A")
             ttm_count = dividend_metrics.get("ttm_event_count", "N/A")

@@ -187,9 +187,11 @@ def _reload_env_file_values_preserving_overrides() -> None:
     if latest_values is None:
         return
 
+    # 运行时优先键（WebUI 可更新）即使在初始环境变量中也允许 .env 文件覆盖
+    _runtime_priority = getattr(Config, '_WEBUI_RUNTIME_ENV_FILE_PRIORITY_KEYS', frozenset())
     managed_keys = {
         key for key in latest_values
-        if key not in _INITIAL_PROCESS_ENV
+        if key not in _INITIAL_PROCESS_ENV or key in _runtime_priority
     }
 
     for key in _RUNTIME_ENV_FILE_KEYS - managed_keys:
@@ -691,13 +693,27 @@ def _build_schedule_time_provider(default_schedule_time: str):
     manager = ConfigManager()
 
     def _provider() -> str:
-        if "SCHEDULE_TIME" in _INITIAL_PROCESS_ENV:
-            return os.getenv("SCHEDULE_TIME", default_schedule_time)
+        # 优先从数据库读取（WebUI 保存的权威值，与其他配置项一致）
+        try:
+            from src.storage import DatabaseManager
+            db_instance = getattr(DatabaseManager, "_instance", None)
+            if db_instance is not None and getattr(db_instance, "_initialized", False):
+                db_map = DatabaseManager.get_instance().get_system_config_map()
+                db_time = (db_map.get("SCHEDULE_TIME", "") or "").strip()
+                if db_time:
+                    return db_time
+        except Exception:
+            pass
 
+        # 兜底：从 .env 文件读取（DB 未初始化时）
         config_map = manager.read_config_map()
         schedule_time = (config_map.get("SCHEDULE_TIME", "") or "").strip()
         if schedule_time:
             return schedule_time
+
+        # 最终兜底：进程环境变量 → 系统默认
+        if "SCHEDULE_TIME" in _INITIAL_PROCESS_ENV:
+            return os.getenv("SCHEDULE_TIME", default_schedule_time)
         return _SYSTEM_DEFAULT_SCHEDULE_TIME
 
     return _provider

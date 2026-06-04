@@ -40,7 +40,6 @@ class SystemConfigApiTestCase(unittest.TestCase):
                     "GEMINI_API_KEY=secret-key-value",
                     "SCHEDULE_TIME=18:00",
                     "LOG_LEVEL=INFO",
-                    "ADMIN_AUTH_ENABLED=false",
                 ]
             )
             + "\n",
@@ -84,6 +83,54 @@ class SystemConfigApiTestCase(unittest.TestCase):
         self.assertNotIn("GEMINI_API_KEY", keys)
         self.assertNotIn("SCHEDULE_TIME", keys)
 
+    def test_authorized_user_setting_without_override_does_not_show_platform_value(self) -> None:
+        current_user = CurrentUser(
+            id=123,
+            username="alice",
+            account_type="web",
+            setting_permissions=("WECHAT_WEBHOOK_URL",),
+        )
+        db = MagicMock()
+        db.get_system_config_map.return_value = {"WECHAT_WEBHOOK_URL": "https://platform.example/webhook"}
+        db.get_user_config_map.return_value = {}
+        db.get_system_config_version.return_value = "db:test"
+
+        with patch("src.storage.DatabaseManager.get_instance", return_value=db):
+            with use_current_user(current_user):
+                payload = system_config.get_system_config(
+                    include_schema=True,
+                    service=self.service,
+                    current_user=current_user,
+                ).model_dump(by_alias=True)
+
+        item_map = {item["key"]: item for item in payload["items"]}
+        self.assertIn("WECHAT_WEBHOOK_URL", item_map)
+        self.assertEqual(item_map["WECHAT_WEBHOOK_URL"]["value"], "")
+
+    def test_authorized_empty_user_setting_overrides_platform_value(self) -> None:
+        current_user = CurrentUser(
+            id=123,
+            username="alice",
+            account_type="web",
+            setting_permissions=("WECHAT_WEBHOOK_URL",),
+        )
+        db = MagicMock()
+        db.get_system_config_map.return_value = {"WECHAT_WEBHOOK_URL": "https://platform.example/webhook"}
+        db.get_user_config_map.return_value = {"WECHAT_WEBHOOK_URL": ""}
+        db.get_system_config_version.return_value = "db:test"
+
+        with patch("src.storage.DatabaseManager.get_instance", return_value=db):
+            with use_current_user(current_user):
+                payload = system_config.get_system_config(
+                    include_schema=True,
+                    service=self.service,
+                    current_user=current_user,
+                ).model_dump(by_alias=True)
+
+        item_map = {item["key"]: item for item in payload["items"]}
+        self.assertIn("WECHAT_WEBHOOK_URL", item_map)
+        self.assertEqual(item_map["WECHAT_WEBHOOK_URL"]["value"], "")
+
     def test_web_user_can_read_and_write_authorized_agent_runtime_config(self) -> None:
         current_user = CurrentUser(
             id=123,
@@ -94,6 +141,7 @@ class SystemConfigApiTestCase(unittest.TestCase):
         db = MagicMock()
         db.get_user_config_map.return_value = {"AGENT_ARCH": "single"}
         db.upsert_user_config_map.return_value = ["AGENT_ARCH"]
+        db.get_system_config_version.return_value = "db:test"
 
         with patch("src.storage.DatabaseManager.get_instance", return_value=db):
             with use_current_user(current_user):
@@ -291,7 +339,6 @@ class SystemConfigApiTestCase(unittest.TestCase):
                     "",
                     "# Secrets",
                     "GEMINI_API_KEY=secret-key-value",
-                    "ADMIN_AUTH_ENABLED=false",
                 ]
             )
             + "\n",

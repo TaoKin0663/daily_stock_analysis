@@ -91,4 +91,4 @@ def normalize_menu_keys(menu_keys: List[str] | None) -> List[str]:
 def normalize_setting_keys(setting_keys: List[str] | None) -> List[str]:
     """Keep only known system setting keys while preserving catalog order."""
     allowed = {str(key).upper() for key in (setting_keys or [])}
-    return [key for key in DEFAULT_USER_SETTING_KEYS if key in allowed]
+    return [key for key in ALL_SETTING_KEYS if key in allowed]

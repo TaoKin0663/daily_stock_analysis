@@ -181,6 +181,17 @@ class BacktestServiceTestCase(unittest.TestCase):
         self.assertEqual(result.simulated_exit_reason, "take_profit")
         self.assertAlmostEqual(result.simulated_return_pct, 10.0)
 
+    def test_backtest_eval_status_column_accepts_insufficient_data(self) -> None:
+        """The stored status length must fit the insufficient_data state."""
+        length = BacktestResult.__table__.c.eval_status.type.length
+        self.assertIsNotNone(length)
+        assert length is not None
+        self.assertGreaterEqual(length, len("insufficient_data"))
+
+    def test_backtest_operation_advice_column_accepts_long_text(self) -> None:
+        """Backtest snapshots can persist full LLM advice text."""
+        self.assertIsNone(BacktestResult.__table__.c.operation_advice.type.length)
+
     def test_summaries_created_after_run(self) -> None:
         """Verify both overall and per-stock BacktestSummary rows are created."""
         service = BacktestService(self.db)

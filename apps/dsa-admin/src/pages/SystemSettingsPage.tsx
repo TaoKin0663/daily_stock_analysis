@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Spin, Switch, Tabs, Tag, Tooltip, Typography, message } from 'antd'
+import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Spin, Switch, Tabs, Tag, TimePicker, Tooltip, Typography, message } from 'antd'
+import dayjs from 'dayjs'
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { requestJson } from '../api'
 import { getCategoryTitle, getFieldTitle } from '../systemConfigI18n'
@@ -65,6 +66,7 @@ const MULTI_AGENT_MODEL_ROWS = [
 ]
 
 function normalizeValue(value: unknown): string {
+  if (dayjs.isDayjs(value)) return value.format('HH:mm')
   if (typeof value === 'boolean') return value ? 'true' : 'false'
   if (value === null || value === undefined) return ''
   return String(value)
@@ -93,6 +95,23 @@ function serializeAgentModelMap(value: Record<string, string>): string {
     .map((row) => [row.key, value[row.key]?.trim() ?? ''] as const)
     .filter(([, model]) => model.length > 0)
   return entries.length ? JSON.stringify(Object.fromEntries(entries)) : ''
+}
+
+/** 解析逗号分隔的技能字符串为 ID 数组。特殊值 "all" 展开为全选。 */
+function parseAgentSkills(value: string): string[] {
+  if (!value.trim()) return []
+  const ids = value.split(',').map((s) => s.trim()).filter(Boolean)
+  if (ids.includes('all')) return ['all']
+  return ids
+}
+
+/** 将选中的技能 ID 数组序列化为逗号分隔字符串 */
+function serializeAgentSkills(selected: string[], allSkillIds: string[]): string {
+  if (selected.includes('all') || selected.length === 0) {
+    return selected.includes('all') ? 'all' : ''
+  }
+  const ordered = allSkillIds.filter((id) => selected.includes(id))
+  return ordered.join(',')
 }
 
 function formatAgentModelOption(model: AgentModelDeployment): string {
@@ -129,6 +148,9 @@ function renderControl(item: ConfigItem) {
   if (schema.ui_control === 'number' || schema.data_type === 'integer' || schema.data_type === 'number') {
     return <InputNumber className="admin-setting-number" />
   }
+  if (schema.ui_control === 'time' || schema.data_type === 'time') {
+    return <TimePicker format="HH:mm" minuteStep={5} style={{ width: 200 }} />
+  }
   if (schema.ui_control === 'select' && schema.options?.length) {
     return (
       <Select
@@ -161,6 +183,11 @@ export function SystemSettingsPage() {
   const agentModelMapValue = normalizeValue(Form.useWatch('AGENT_MODEL_MAP', form))
   const agentPrimaryModel = normalizeValue(Form.useWatch('AGENT_LITELLM_MODEL', form))
   const primaryModel = normalizeValue(Form.useWatch('LITELLM_MODEL', form))
+  const [skills, setSkills] = useState<Array<{ id: string; name: string; description: string }>>([])
+  const [skillsLoading, setSkillsLoading] = useState(false)
+  const [skillsError, setSkillsError] = useState<string | null>(null)
+  const [defaultSkillId, setDefaultSkillId] = useState<string>('')
+  const agentSkillsValue = normalizeValue(Form.useWatch('AGENT_SKILLS', form))
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -175,6 +202,10 @@ export function SystemSettingsPage() {
         }
         if (schema?.data_type === 'integer' || schema?.data_type === 'number') {
           return [item.key, item.value === '' ? undefined : Number(item.value)]
+        }
+        if (schema?.ui_control === 'time' || schema?.data_type === 'time') {
+          const parsed = dayjs(item.value, 'HH:mm')
+          return [item.key, parsed.isValid() ? parsed : undefined]
         }
         return [item.key, item.value]
       })))
@@ -196,6 +227,37 @@ export function SystemSettingsPage() {
     () => config?.items.find((item) => item.key === 'AGENT_MODEL_MAP'),
     [config],
   )
+
+  const agentSkillsItem = useMemo(
+    () => config?.items.find((item) => item.key === 'AGENT_SKILLS'),
+    [config],
+  )
+
+  useEffect(() => {
+    if (!agentSkillsItem) return
+    let cancelled = false
+    const task = window.setTimeout(() => {
+      setSkillsLoading(true)
+      setSkillsError(null)
+      void requestJson<{ skills: Array<{ id: string; name: string; description: string }>; default_skill_id: string }>('/api/v1/agent/skills')
+        .then((payload) => {
+          if (!cancelled) {
+            setSkills(payload.skills ?? [])
+            setDefaultSkillId(payload.default_skill_id ?? '')
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) setSkillsError(err instanceof Error ? err.message : '策略列表加载失败')
+        })
+        .finally(() => {
+          if (!cancelled) setSkillsLoading(false)
+        })
+    }, 0)
+    return () => {
+      cancelled = true
+      window.clearTimeout(task)
+    }
+  }, [agentSkillsItem])
 
   useEffect(() => {
     if (!agentModelMapItem) return
@@ -414,7 +476,65 @@ export function SystemSettingsPage() {
                     </Space>
                   </div>
                 ) : null}
-                {group.items.filter((item) => item.key !== 'AGENT_MODEL_MAP').map((item) => {
+                {group.key === 'agent' && agentSkillsItem ? (
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      padding: 16,
+                      border: '1px solid #f0f0f0',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Title level={5} style={{ marginTop: 0 }}>平台默认 Agent 策略技能</Title>
+                    <Text type="secondary">
+                      选择希望在分析时激活的策略技能。勾选"all（全部策略）"可一键启用全部，留空则使用默认主策略。
+                    </Text>
+                    <div style={{ marginTop: 16, marginBottom: 12 }}>
+                      <Text type="secondary">
+                        默认策略：
+                      </Text>
+                      <Text code>{defaultSkillId || 'bull_trend'}</Text>
+                    </div>
+                    {skillsError ? (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        message="策略列表加载失败"
+                        description={skillsError}
+                        style={{ marginBottom: 12 }}
+                      />
+                    ) : null}
+                    <Select
+                      mode="multiple"
+                      allowClear
+                      showSearch
+                      placeholder="选择 Agent 策略技能"
+                      style={{ width: '100%' }}
+                      value={
+                        (() => {
+                          const selected = parseAgentSkills(agentSkillsValue)
+                          if (selected.includes('all')) return ['all']
+                          return selected
+                        })()
+                      }
+                      loading={skillsLoading}
+                      disabled={saving || skillsLoading}
+                      options={[
+                        { label: 'all（全部策略）', value: 'all' },
+                        ...skills.map((s) => ({
+                          label: `${s.id} — ${s.name}`,
+                          value: s.id,
+                        })),
+                      ]}
+                      optionFilterProp="label"
+                      onChange={(values: string[]) => {
+                        const allIds = skills.map((s) => s.id)
+                        form.setFieldValue('AGENT_SKILLS', serializeAgentSkills(values, allIds))
+                      }}
+                    />
+                  </div>
+                ) : null}
+                {group.items.filter((item) => item.key !== 'AGENT_MODEL_MAP' && item.key !== 'AGENT_SKILLS').map((item) => {
                   const accessLevelTag = item.schema?.access_level === 'user' ? (
                     <Tag color="blue" style={{ marginLeft: 8, fontSize: 11, lineHeight: '18px' }}>用户可覆盖</Tag>
                   ) : (

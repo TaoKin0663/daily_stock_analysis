@@ -10,7 +10,6 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
-from api.deps import get_system_config_service
 from src.auth import (
     ADMIN_COOKIE_NAME,
     AUTH_CLIENT_ADMIN,
@@ -31,15 +30,11 @@ from src.auth import (
     is_password_changeable,
     is_password_set,
     record_login_failure,
-    refresh_auth_state,
-    rotate_session_secret,
     register_user,
     set_initial_password,
-    verify_password,
     verify_stored_password,
     verify_session,
 )
-from src.config import Config, setup_env
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +98,7 @@ class ChangePasswordRequest(BaseModel):
 
 
 class AuthSettingsRequest(BaseModel):
-    """Update auth enablement and initial password settings."""
+    """Set or confirm mandatory password login settings."""
 
     model_config = {"populate_by_name": True}
 
@@ -136,46 +131,6 @@ def _cookie_params(request: Request) -> dict:
         "path": "/",
         "max_age": max_age,
     }
-
-
-def _apply_auth_enabled(enabled: bool, request: Request | None = None) -> bool:
-    """持久化强制认证状态到数据库并重载运行时配置。"""
-    enabled = True
-    manager_applied = False
-    if request is not None:
-        try:
-            service = get_system_config_service(request)
-            service.apply_simple_updates(
-                updates=[("ADMIN_AUTH_ENABLED", "true" if enabled else "false")],
-                mask_token="******",
-            )
-            manager_applied = True
-        except Exception as exc:
-            logger.warning(
-                "通过 SystemConfigService 写入 ADMIN_AUTH_ENABLED 失败，尝试直写 DB: %s",
-                exc,
-                exc_info=True,
-            )
-            manager_applied = False
-
-    if not manager_applied:
-        try:
-            from src.storage import DatabaseManager
-            DatabaseManager.get_instance().upsert_system_config_map(
-                {"ADMIN_AUTH_ENABLED": "true" if enabled else "false"}
-            )
-            manager_applied = True
-        except Exception as exc:
-            logger.error("写入 ADMIN_AUTH_ENABLED 到数据库失败: %s", exc, exc_info=True)
-            manager_applied = False
-
-    if not manager_applied:
-        return False
-
-    Config.reset_instance()
-    setup_env(override=True)
-    refresh_auth_state()
-    return True
 
 
 def _password_set_for_response(auth_enabled: bool) -> bool:
@@ -250,133 +205,90 @@ async def auth_status(request: Request):
     description="Configure the mandatory password login. Disabling authentication is not allowed.",
 )
 async def auth_update_settings(request: Request, body: AuthSettingsRequest):
-    """Manage auth enablement from the settings page."""
-    if not body.auth_enabled:
-        return JSONResponse(
-            status_code=400,
-            content={"error": "auth_always_required", "message": "登录认证为必需项，不能关闭"},
-        )
-    target_enabled = body.auth_enabled
-    current_enabled = True
+    """Set or confirm the mandatory admin password; auth cannot be disabled."""
     stored_password_exists = has_stored_password()
 
     password = (body.password or "").strip()
     confirm = (body.password_confirm or "").strip()
     current_password = (body.current_password or "").strip()
 
-    if target_enabled:
-        if password or confirm:
-            if stored_password_exists:
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "error": "password_already_set",
-                        "message": "已存在管理员密码，请启用认证后通过修改密码功能更新",
-                    },
-                )
-            if not password:
-                return JSONResponse(
-                    status_code=400,
-                    content={"error": "password_required", "message": "请输入要设置的管理员密码"},
-                )
-            if password != confirm:
-                return JSONResponse(
-                    status_code=400,
-                    content={"error": "password_mismatch", "message": "两次输入的密码不一致"},
-                )
-            if has_stored_password():
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "error": "password_already_set",
-                        "message": "已存在管理员密码，请启用认证后通过修改密码功能更新",
-                    },
-                )
-            err = set_initial_password(password)
-            if err:
-                return JSONResponse(
-                    status_code=400,
-                    content={"error": "invalid_password", "message": err},
-                )
-        elif not stored_password_exists:
+    if password or confirm:
+        if stored_password_exists:
             return JSONResponse(
                 status_code=400,
-                content={"error": "password_required", "message": "开启密码登录前请先设置密码"},
+                content={
+                    "error": "password_already_set",
+                    "message": "管理员密码已存在，请通过修改密码功能更新",
+                },
             )
-        else:
-            # P1 Vulnerability Fix: Enforce current-password check independent of global cached flag
-            # We must verify they actually possess a valid admin session, otherwise an attacker
-            # could hit a race condition when auth becomes enabled mid-flight.
-            # This triggers whenever trying to enable/keep enabled an existing auth setup.
-            cookie_val = _get_session_cookie(request)
-            # if target_enabled is True here, they are requesting to enable or keep auth enabled
-            is_valid_session = cookie_val and verify_session(cookie_val)
-            
-            if not is_valid_session:
-                if not current_password:
-                    return JSONResponse(
-                        status_code=400,
-                        content={"error": "current_required", "message": "重新开启认证前请输入当前密码"},
-                    )
-                ip = get_client_ip(request)
-                if not check_rate_limit(ip):
-                    return JSONResponse(
-                        status_code=429,
-                        content={
-                            "error": "rate_limited",
-                            "message": "Too many failed attempts. Please try again later.",
-                        },
-                    )
-                if not verify_stored_password(current_password):
-                    record_login_failure(ip)
-                    return JSONResponse(
-                        status_code=401,
-                        content={"error": "invalid_password", "message": "当前密码错误"},
-                    )
-                clear_rate_limit(ip)
-    if target_enabled != current_enabled:
-        if not _apply_auth_enabled(target_enabled, request=request):
+        if not password:
             return JSONResponse(
-                status_code=500,
-                content={"error": "internal_error", "message": "Failed to update auth settings"},
+                status_code=400,
+                content={"error": "password_required", "message": "请输入要设置的管理员密码"},
             )
-        if not rotate_session_secret():
-            rollback_ok = _apply_auth_enabled(current_enabled, request=request)
-            if not rollback_ok:
-                logger.error("Failed to roll back auth state after session secret rotation failure")
+        if password != confirm:
             return JSONResponse(
-                status_code=500,
-                content={"error": "internal_error", "message": "Failed to rotate session secret"},
+                status_code=400,
+                content={"error": "password_mismatch", "message": "两次输入的密码不一致"},
             )
+        if has_stored_password():
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "password_already_set",
+                    "message": "管理员密码已存在，请通过修改密码功能更新",
+                },
+            )
+        err = set_initial_password(password)
+        if err:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "invalid_password", "message": err},
+            )
+    elif not stored_password_exists:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "password_required", "message": "设置管理员密码后才能登录"},
+        )
     else:
-        if not _apply_auth_enabled(target_enabled, request=request):
-            return JSONResponse(
-                status_code=500,
-                content={"error": "internal_error", "message": "Failed to update auth settings"},
-            )
+        cookie_val = _get_session_cookie(request)
+        is_valid_session = bool(cookie_val and verify_session(cookie_val))
 
-    if target_enabled:
-        session_val = create_session()
-        if not session_val:
-            rollback_ok = _apply_auth_enabled(current_enabled, request=request)
-            if not rollback_ok:
-                logger.error("Failed to roll back auth state after session creation failure")
-            return JSONResponse(
-                status_code=500,
-                content={"error": "internal_error", "message": "Failed to create session"},
-            )
-        # We manually set loggedIn=True because the cookie is being set in this response
-        # and won't be visible in request.cookies until the NEXT request.
-        content = _get_auth_status_dict(request)
-        content["loggedIn"] = True
-        resp = JSONResponse(content=content)
-        _set_session_cookie(resp, session_val, request)
-        return resp
+        if not is_valid_session:
+            if not current_password:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "current_required", "message": "请输入当前密码"},
+                )
+            ip = get_client_ip(request)
+            if not check_rate_limit(ip):
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "error": "rate_limited",
+                        "message": "Too many failed attempts. Please try again later.",
+                    },
+                )
+            if not verify_stored_password(current_password):
+                record_login_failure(ip)
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "invalid_password", "message": "当前密码错误"},
+                )
+            clear_rate_limit(ip)
 
-    resp = JSONResponse(content=_get_auth_status_dict(request))
-    _delete_session_cookie(resp, request)
+    session_val = create_session()
+    if not session_val:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "internal_error", "message": "Failed to create session"},
+        )
+
+    content = _get_auth_status_dict(request)
+    content["loggedIn"] = True
+    resp = JSONResponse(content=content)
+    _set_session_cookie(resp, session_val, request)
     return resp
-
 
 
 @router.post(
@@ -428,6 +340,39 @@ async def auth_login(request: Request, body: LoginRequest):
                     status_code=400,
                     content={"error": "invalid_password", "message": err},
                 )
+        user = authenticate_admin_user("admin", password)
+        if not user:
+            record_login_failure(ip)
+            return JSONResponse(
+                status_code=401,
+                content={"error": "invalid_password", "message": "账号或密码错误"},
+            )
+        clear_rate_limit(ip)
+        session_val = create_session(user, subject_type=SESSION_SUBJECT_ADMIN_USER)
+        if not session_val:
+            return JSONResponse(
+                status_code=500,
+                content={"error": "internal_error", "message": "Failed to create session"},
+            )
+        resp = JSONResponse(content={"ok": True})
+        _set_session_cookie(resp, session_val, request)
+        return resp
+
+    if username.lower() == "admin" and not is_password_set():
+        confirm = (body.password_confirm or "").strip()
+        if password != confirm:
+            record_login_failure(ip)
+            return JSONResponse(
+                status_code=400,
+                content={"error": "password_mismatch", "message": "Passwords do not match"},
+            )
+        err = set_initial_password(password)
+        if err:
+            record_login_failure(ip)
+            return JSONResponse(
+                status_code=400,
+                content={"error": "invalid_password", "message": err},
+            )
         user = authenticate_admin_user("admin", password)
         if not user:
             record_login_failure(ip)

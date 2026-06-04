@@ -177,26 +177,7 @@ function buildSystemConfigState(overrides: ConfigOverride = {}) {
   return {
     categories: baseCategories,
     itemsByCategory: {
-      system: [
-        {
-          key: 'ADMIN_AUTH_ENABLED',
-          value: 'true',
-          rawValueExists: true,
-          isMasked: false,
-          schema: {
-            key: 'ADMIN_AUTH_ENABLED',
-            category: 'system',
-            dataType: 'boolean',
-            uiControl: 'switch',
-            isSensitive: false,
-            isRequired: false,
-            isEditable: true,
-            options: [],
-            validation: {},
-            displayOrder: 1,
-          },
-        },
-      ],
+      system: [],
       base: [
         {
           key: 'STOCK_LIST',

@@ -536,13 +536,29 @@ class TestOrchestratorModes(unittest.TestCase):
 
     def test_build_context_from_dict(self):
         orch = self._make_orchestrator()
+        fundamental_context = {
+            "earnings": {
+                "data": {
+                    "financial_report": {
+                        "report_date": "2025-12-31",
+                        "profitability": {"rows": [{"period": "2025", "roe": 18.2}]},
+                    }
+                }
+            }
+        }
         ctx = orch._build_context(
             "Analyze 600519",
-            context={"stock_code": "600519", "stock_name": "贵州茅台", "skills": ["bull_trend"]},
+            context={
+                "stock_code": "600519",
+                "stock_name": "贵州茅台",
+                "skills": ["bull_trend"],
+                "fundamental_context": fundamental_context,
+            },
         )
         self.assertEqual(ctx.stock_code, "600519")
         self.assertEqual(ctx.stock_name, "贵州茅台")
         self.assertEqual(ctx.meta["skills_requested"], ["bull_trend"])
+        self.assertEqual(ctx.get_data("fundamental_context"), fundamental_context)
 
     def test_build_context_extracts_code_from_query(self):
         orch = self._make_orchestrator()

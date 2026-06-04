@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type React from 'react';
-import { Badge, Button, Input, ListBox, Select, Switch, TextArea, Tooltip } from '@heroui/react';
+import { Badge, Button, Input, ListBox, Select, Switch, TextArea, TimeField } from '@heroui/react';
+import { Time } from '@internationalized/date';
 import type { ConfigValidationIssue, SystemConfigFieldSchema, SystemConfigItem } from '../../types/systemConfig';
 import { getFieldDescriptionZh, getFieldTitleZh } from '../../utils/systemConfigI18n';
 import { cn } from '../../utils/cn';
@@ -127,30 +128,30 @@ function renderFieldControl(
     const options = normalizeSelectOptions(schema.options);
 
     return (
-        <Select
-          id={controlId}
-          selectedKey={value || null}
-          onSelectionChange={(key) => onChange(key === null ? '' : String(key))}
-          isDisabled={disabled || !schema.isEditable}
-          placeholder="请选择"
-          fullWidth
-        >
-          <Select.Trigger id={controlId}>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {options.map((option) => (
-                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                  {option.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
-      );
+      <Select
+        id={controlId}
+        selectedKey={value || null}
+        onSelectionChange={(key) => onChange(key === null ? '' : String(key))}
+        isDisabled={disabled || !schema.isEditable}
+        placeholder="请选择"
+        fullWidth
+      >
+        <Select.Trigger id={controlId}>
+          <Select.Value />
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
+            {options.map((option) => (
+              <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
+                {option.label}
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      </Select>
+    );
   }
 
   if (controlType === 'password') {
@@ -248,7 +249,59 @@ function renderFieldControl(
     );
   }
 
-  const inputType = controlType === 'number' ? 'number' : controlType === 'time' ? 'time' : 'text';
+  if (controlType === 'time') {
+    // 解析 HH:mm 字符串 → Time 对象，分钟取整到最近 5 分钟
+    let timeValue: Time | null = null;
+    if (value) {
+      const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+      if (match) {
+        const rawHour = Number(match[1]);
+        const rawMinute = Number(match[2]);
+        const rounded = Math.round(rawMinute / 5) * 5;
+        if (rounded === 60) {
+          timeValue = new Time((rawHour + 1) % 24, 0);
+        } else {
+          timeValue = new Time(rawHour, rounded);
+        }
+      }
+    }
+
+    return (
+      <TimeField
+        id={controlId}
+        value={timeValue}
+        isDisabled={disabled || !schema?.isEditable}
+        granularity="minute"
+        hourCycle={24}
+        className="w-full"
+        onChange={(newTime) => {
+          if (!newTime) {
+            onChange('');
+            return;
+          }
+          // 分钟取整到最近 5 分钟，溢出则进位
+          const roundedMinutes = Math.round(newTime.minute / 5) * 5;
+          let hour = newTime.hour;
+          let minute = roundedMinutes;
+          if (roundedMinutes === 60) {
+            hour = (hour + 1) % 24;
+            minute = 0;
+          }
+          const hh = String(hour).padStart(2, '0');
+          const mm = String(minute).padStart(2, '0');
+          onChange(`${hh}:${mm}`);
+        }}
+      >
+        <TimeField.Group>
+          <TimeField.Input>
+            {(segment) => <TimeField.Segment segment={segment} />}
+          </TimeField.Input>
+        </TimeField.Group>
+      </TimeField>
+    );
+  }
+
+  const inputType = controlType === 'number' ? 'number' : 'text';
 
   return (
     <Input
@@ -315,16 +368,19 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
       </div>
 
       {description ? (
-        <Tooltip delay={0}>
-          <Tooltip.Trigger className="mb-3 inline-flex max-w-full">
-            <p className="text-xs leading-5 text-muted-text">
-              {description}
-            </p>
-          </Tooltip.Trigger>
-          <Tooltip.Content>
-            <p className="text-xs">{description}</p>
-          </Tooltip.Content>
-        </Tooltip>
+        <p className="text-xs leading-5 text-muted-text">
+          {description}
+        </p>
+        // <Tooltip delay={0}>
+        //   <Tooltip.Trigger className="mb-3 inline-flex max-w-full">
+        //     <p className="text-xs leading-5 text-muted-text">
+        //       {description}
+        //     </p>
+        //   </Tooltip.Trigger>
+        //   <Tooltip.Content>
+        //     <p className="text-xs">{description}</p>
+        //   </Tooltip.Content>
+        // </Tooltip>
       ) : null}
 
       <div>

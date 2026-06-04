@@ -143,6 +143,66 @@ class AnalyzerNewsPromptTestCase(unittest.TestCase):
         self.assertNotIn("超过5%必须标注\"严禁追高\"", prompt)
         self.assertNotIn("MA5>MA10>MA20为多头", prompt)
 
+    def test_format_prompt_skips_empty_financial_report(self) -> None:
+        with patch.object(GeminiAnalyzer, "_init_litellm", return_value=None):
+            analyzer = GeminiAnalyzer()
+
+        context = {
+            "code": "600519",
+            "stock_name": "贵州茅台",
+            "date": "2026-03-16",
+            "today": {},
+            "fundamental_context": {
+                "earnings": {
+                    "data": {
+                        "financial_report": {},
+                        "dividend": {},
+                    }
+                }
+            },
+        }
+
+        prompt = analyzer._format_prompt(context, "贵州茅台", news_context=None)
+
+        self.assertNotIn("财报与分红（价值投资口径）", prompt)
+        self.assertNotIn("### 盈利能力结构化指标", prompt)
+
+    def test_format_prompt_includes_profitability_rows(self) -> None:
+        with patch.object(GeminiAnalyzer, "_init_litellm", return_value=None):
+            analyzer = GeminiAnalyzer()
+
+        context = {
+            "code": "600519",
+            "stock_name": "贵州茅台",
+            "date": "2026-03-16",
+            "today": {},
+            "fundamental_context": {
+                "earnings": {
+                    "data": {
+                        "financial_report": {
+                            "report_date": "2025-12-31",
+                            "profitability": {
+                                "rows": [
+                                    {
+                                        "period": "2025",
+                                        "gross_margin": 91.2,
+                                        "net_margin": 48.5,
+                                        "roe": 30.1,
+                                    }
+                                ]
+                            },
+                        }
+                    }
+                }
+            },
+        }
+
+        prompt = analyzer._format_prompt(context, "贵州茅台", news_context=None)
+
+        self.assertIn("财报与分红（价值投资口径）", prompt)
+        self.assertIn("盈利能力结构化指标", prompt)
+        self.assertIn("profitability_analysis", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

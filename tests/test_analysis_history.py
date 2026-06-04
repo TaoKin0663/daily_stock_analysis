@@ -36,14 +36,14 @@ from src.config import Config
 from src.storage import DatabaseManager, AnalysisHistory, BacktestResult
 from src.analyzer import AnalysisResult
 from src.services.history_service import HistoryService
-import src.auth as auth
+from src.auth import register_user
+from src.user_context import CurrentUser, use_current_user
 
 class AnalysisHistoryTestCase(unittest.TestCase):
     """分析历史存储测试"""
 
     def setUp(self) -> None:
         """为每个用例初始化独立数据库"""
-        auth._auth_enabled = False
         self._temp_dir = tempfile.TemporaryDirectory()
         self._db_path = os.path.join(self._temp_dir.name, "test_analysis_history.db")
         os.environ["DATABASE_PATH"] = self._db_path
@@ -51,9 +51,24 @@ class AnalysisHistoryTestCase(unittest.TestCase):
         Config._instance = None
         DatabaseManager.reset_instance()
         self.db = DatabaseManager.get_instance()
+        user, err = register_user("history_user", "password123")
+        self.assertIsNone(err)
+        self.current_user = CurrentUser(
+            id=int(user["id"]),
+            username=str(user["username"]),
+            is_admin=False,
+            account_type="web",
+            role_key=str(user.get("roleKey") or ""),
+            role_name=str(user.get("roleName") or ""),
+            menu_permissions=tuple(user.get("menuPermissions") or ()),
+            setting_permissions=tuple(user.get("settingPermissions") or ()),
+        )
+        self._current_user_ctx = use_current_user(self.current_user)
+        self._current_user_ctx.__enter__()
 
     def tearDown(self) -> None:
         """清理资源"""
+        self._current_user_ctx.__exit__(None, None, None)
         DatabaseManager.reset_instance()
         self._temp_dir.cleanup()
 
@@ -611,6 +626,7 @@ class AnalysisHistoryTestCase(unittest.TestCase):
         with self.db.session_scope() as session:
             session.add(BacktestResult(
                 analysis_history_id=record_id,
+                owner_user_id=self.current_user.id,
                 code="600519",
                 analysis_date=None,
                 eval_window_days=10,
@@ -628,8 +644,7 @@ class AnalysisHistoryTestCase(unittest.TestCase):
                 0,
             )
 
-    @patch("src.auth.is_auth_enabled", return_value=False)
-    def test_delete_history_api_deletes_selected_records(self, mock_auth) -> None:
+    def test_delete_history_api_deletes_selected_records(self) -> None:
         """DELETE /api/v1/history should remove only the requested records."""
         if TestClient is None or create_app is None:
             self.skipTest("fastapi is not installed in this test environment")
@@ -640,6 +655,11 @@ class AnalysisHistoryTestCase(unittest.TestCase):
         static_dir = Path(self._temp_dir.name) / "empty-static"
         static_dir.mkdir(exist_ok=True)
         client = TestClient(create_app(static_dir=static_dir))
+        login_response = client.post(
+            "/api/v1/auth/login",
+            json={"username": "history_user", "password": "password123"},
+        )
+        self.assertEqual(login_response.status_code, 200)
 
         response = client.request(
             "DELETE",

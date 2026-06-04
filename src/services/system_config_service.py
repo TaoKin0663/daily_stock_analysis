@@ -795,13 +795,24 @@ class SystemConfigService:
 
     def _collect_issues(self, items: Sequence[Dict[str, str]], mask_token: str) -> List[Dict[str, Any]]:
         """Collect field-level and cross-field validation issues."""
-        current_map = self._manager.read_config_map()
+        current_map = {key.upper(): value for key, value in self._manager.read_config_map().items()}
         from src.user_context import get_current_user, get_current_user_id
         from src.storage import DatabaseManager
         current_user = get_current_user()
+        db = DatabaseManager.get_instance()
+        try:
+            current_map.update(db.get_system_config_map())
+        except Exception:
+            logger.warning("璇诲彇绯荤粺閰嶇疆鏁版嵁搴撳け璐ワ紝浣跨敤 .env fallback", exc_info=True)
         user_id = None if getattr(current_user, "account_type", "web") in {"admin", "system"} else get_current_user_id()
         if user_id is not None:
-            current_map.update(DatabaseManager.get_instance().get_user_config_map(user_id))
+            user_overrides = db.get_user_config_map(user_id)
+            allowed = {
+                str(key).upper()
+                for key in (getattr(current_user, "setting_permissions", ()) or ())
+            }
+            for key in allowed:
+                current_map[key] = user_overrides.get(key, "")
         effective_map = dict(current_map)
         issues: List[Dict[str, Any]] = []
         updated_map: Dict[str, str] = {}

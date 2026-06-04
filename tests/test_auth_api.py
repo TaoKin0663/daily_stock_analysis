@@ -11,7 +11,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from dotenv import dotenv_values
 from fastapi.responses import Response
 from starlette.requests import Request
 
@@ -30,10 +29,7 @@ from src.storage import DatabaseManager
 
 
 def _reset_auth_globals() -> None:
-    auth._auth_enabled = None
     auth._session_secret = None
-    auth._password_hash_salt = None
-    auth._password_hash_stored = None
     auth._rate_limit = {}
 
 
@@ -42,35 +38,44 @@ class AuthApiTestCase(unittest.TestCase):
 
     def setUp(self) -> None:
         _reset_auth_globals()
+        os.environ.pop("ADMIN_INITIAL_PASSWORD", None)
         self.temp_dir = tempfile.TemporaryDirectory()
         self.data_dir = Path(self.temp_dir.name)
+        self._original_env_file = os.environ.get("ENV_FILE")
+        self._original_database_path = os.environ.get("DATABASE_PATH")
+        self._original_database_url = os.environ.get("DATABASE_URL")
         self.env_path = self.data_dir / ".env"
         self.env_path.write_text(
-            "STOCK_LIST=600519\nGEMINI_API_KEY=test\nADMIN_AUTH_ENABLED=true\n",
+            "STOCK_LIST=600519\nGEMINI_API_KEY=test\n",
             encoding="utf-8",
         )
         os.environ["ENV_FILE"] = str(self.env_path)
         os.environ["DATABASE_PATH"] = str(self.data_dir / "test.db")
+        os.environ.pop("DATABASE_URL", None)
         Config.reset_instance()
         DatabaseManager.reset_instance()
 
-        self.auth_patcher = patch.object(auth, "_is_auth_enabled_from_env", return_value=True)
         self.data_dir_patcher = patch.object(auth, "_get_data_dir", return_value=self.data_dir)
-        self.auth_patcher.start()
         self.data_dir_patcher.start()
 
     def tearDown(self) -> None:
-        self.auth_patcher.stop()
         self.data_dir_patcher.stop()
         Config.reset_instance()
         DatabaseManager.reset_instance()
-        os.environ.pop("ENV_FILE", None)
-        os.environ.pop("DATABASE_PATH", None)
+        if self._original_env_file is None:
+            os.environ.pop("ENV_FILE", None)
+        else:
+            os.environ["ENV_FILE"] = self._original_env_file
+        if self._original_database_path is None:
+            os.environ.pop("DATABASE_PATH", None)
+        else:
+            os.environ["DATABASE_PATH"] = self._original_database_path
+        os.environ.pop("ADMIN_INITIAL_PASSWORD", None)
+        if self._original_database_url is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = self._original_database_url
         self.temp_dir.cleanup()
-
-    def _read_auth_enabled_from_env(self) -> bool:
-        values = dotenv_values(self.env_path)
-        return (values.get("ADMIN_AUTH_ENABLED") or "").strip().lower() in ("true", "1", "yes")
 
     @staticmethod
     def _build_request(cookies=None, headers=None):
@@ -91,6 +96,31 @@ class AuthApiTestCase(unittest.TestCase):
         self.assertFalse(data["passwordSet"])
         self.assertFalse(data["loggedIn"])
 
+    def test_admin_initial_password_seeds_database_password(self) -> None:
+        os.environ["ADMIN_INITIAL_PASSWORD"] = "seedpass123"
+        Config.reset_instance()
+        DatabaseManager.reset_instance()
+
+        data = asyncio.run(auth_endpoint.auth_status(self._build_request()))
+
+        self.assertEqual(data["setupState"], "enabled")
+        self.assertTrue(data["passwordSet"])
+        self.assertTrue(auth.verify_stored_password("seedpass123"))
+
+    def test_admin_initial_password_does_not_overwrite_existing_password(self) -> None:
+        os.environ["ADMIN_INITIAL_PASSWORD"] = "seedpass123"
+        Config.reset_instance()
+        DatabaseManager.reset_instance()
+        self.assertTrue(auth.verify_stored_password("seedpass123"))
+
+        auth.change_password("seedpass123", "changedpass123")
+        os.environ["ADMIN_INITIAL_PASSWORD"] = "otherpass123"
+        Config.reset_instance()
+        DatabaseManager.reset_instance()
+
+        self.assertTrue(auth.verify_stored_password("changedpass123"))
+        self.assertFalse(auth.verify_stored_password("otherpass123"))
+
     def test_login_first_time_set_initial_password(self) -> None:
         response = asyncio.run(
             auth_endpoint.auth_login(
@@ -101,6 +131,18 @@ class AuthApiTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(f"{ADMIN_COOKIE_NAME}=", response.headers["set-cookie"])
         self.assertIn(b'"ok":true', response.body)
+
+    def test_web_client_can_set_first_time_admin_password(self) -> None:
+        response = asyncio.run(
+            auth_endpoint.auth_login(
+                self._build_request(headers={"x-dsa-auth-client": "web"}),
+                auth_endpoint.LoginRequest(password="newpass123", passwordConfirm="newpass123"),
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(f"{WEB_COOKIE_NAME}=", response.headers["set-cookie"])
+        self.assertTrue(auth.verify_stored_password("newpass123"))
 
     def test_admin_login_sets_admin_cookie(self) -> None:
         response = asyncio.run(
@@ -459,79 +501,75 @@ class AuthApiTestCase(unittest.TestCase):
 
     def test_auth_settings_enable_sets_initial_password_and_logs_in(self) -> None:
         self.env_path.write_text(
-            "STOCK_LIST=600519\nGEMINI_API_KEY=test\nADMIN_AUTH_ENABLED=false\n",
+            "STOCK_LIST=600519\nGEMINI_API_KEY=test\n",
             encoding="utf-8",
         )
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.refresh_auth_state()
+        auth.refresh_auth_state()
 
-            response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(
-                        authEnabled=True,
-                        password="initpass123",
-                        passwordConfirm="initpass123",
-                    ),
-                )
+        response = asyncio.run(
+            auth_endpoint.auth_update_settings(
+                self._build_request(),
+                auth_endpoint.AuthSettingsRequest(
+                    authEnabled=True,
+                    password="initpass123",
+                    passwordConfirm="initpass123",
+                ),
             )
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'"authEnabled":true', response.body)
         self.assertIn(b'"loggedIn":true', response.body)
         self.assertIn(b'"passwordSet":true', response.body)
         self.assertIn(f"{WEB_COOKIE_NAME}=", response.headers["set-cookie"])
-        self.assertIn("ADMIN_AUTH_ENABLED=true", self.env_path.read_text(encoding="utf-8"))
 
     def test_auth_settings_enable_requires_password_when_missing(self) -> None:
         self.env_path.write_text(
-            "STOCK_LIST=600519\nGEMINI_API_KEY=test\nADMIN_AUTH_ENABLED=false\n",
+            "STOCK_LIST=600519\nGEMINI_API_KEY=test\n",
             encoding="utf-8",
         )
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.refresh_auth_state()
+        auth.refresh_auth_state()
 
-            response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=True),
-                )
+        response = asyncio.run(
+            auth_endpoint.auth_update_settings(
+                self._build_request(),
+                auth_endpoint.AuthSettingsRequest(authEnabled=True),
             )
+        )
 
         self.assertEqual(response.status_code, 400)
         self.assertIn(b'"error":"password_required"', response.body)
 
     def test_auth_settings_rechecks_password_before_initial_write(self) -> None:
         self.env_path.write_text(
-            "STOCK_LIST=600519\nGEMINI_API_KEY=test\nADMIN_AUTH_ENABLED=false\n",
+            "STOCK_LIST=600519\nGEMINI_API_KEY=test\n",
             encoding="utf-8",
         )
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            auth.refresh_auth_state()
+        auth.refresh_auth_state()
 
-            with patch.object(
-                auth_endpoint,
-                "has_stored_password",
-                side_effect=[False, True],
-            ) as has_password_mock:
-                with patch.object(auth_endpoint, "set_initial_password") as set_password_mock:
-                    response = asyncio.run(
-                        auth_endpoint.auth_update_settings(
-                            self._build_request(),
-                            auth_endpoint.AuthSettingsRequest(
-                                authEnabled=True,
-                                password="initpass123",
-                                passwordConfirm="initpass123",
-                            ),
-                        )
+        with patch.object(
+            auth_endpoint,
+            "has_stored_password",
+            side_effect=[False, True],
+        ) as has_password_mock:
+            with patch.object(auth_endpoint, "set_initial_password") as set_password_mock:
+                response = asyncio.run(
+                    auth_endpoint.auth_update_settings(
+                        self._build_request(),
+                        auth_endpoint.AuthSettingsRequest(
+                            authEnabled=True,
+                            password="initpass123",
+                            passwordConfirm="initpass123",
+                        ),
                     )
+                )
 
         self.assertEqual(has_password_mock.call_count, 2)
         set_password_mock.assert_not_called()
         self.assertEqual(response.status_code, 400)
         self.assertIn(b'"error":"password_already_set"', response.body)
 
-    def test_auth_settings_rejects_disabling_auth(self) -> None:
+    def test_auth_settings_ignores_disabled_flag_and_logs_in_with_current_password(self) -> None:
         auth.set_initial_password("passwd6")
         response = asyncio.run(
             auth_endpoint.auth_update_settings(
@@ -540,9 +578,9 @@ class AuthApiTestCase(unittest.TestCase):
             )
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b'"error":"auth_always_required"', response.body)
-        self.assertIn("ADMIN_AUTH_ENABLED=true", self.env_path.read_text(encoding="utf-8"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'"authEnabled":true', response.body)
+        self.assertIn(b'"loggedIn":true', response.body)
 
     def test_auth_settings_enable_requires_valid_session_cookie_against_toctou(self) -> None:
         """Verify fix for P1 vulnerability: passing authEnabled=True without currentPassword
@@ -550,31 +588,19 @@ class AuthApiTestCase(unittest.TestCase):
         is_auth_enabled() evaluates to True during handler execution (TOCTOU race condition).
         """
         self.env_path.write_text(
-            "STOCK_LIST=600519\nGEMINI_API_KEY=test\nADMIN_AUTH_ENABLED=false\n",
+            "STOCK_LIST=600519\nGEMINI_API_KEY=test\n",
             encoding="utf-8",
         )
-        with patch.object(auth, "_is_auth_enabled_from_env", side_effect=self._read_auth_enabled_from_env):
-            # 1. Setup an existing password, auth is currently disabled
-            auth.set_initial_password("passwd6")
-            
-            # 2. Simulate the race condition:
-            # The middleware let the request through because auth was supposedly False.
-            # But just before the handler runs, another thread enables auth.
-            self.env_path.write_text(
-                "STOCK_LIST=600519\nGEMINI_API_KEY=test\nADMIN_AUTH_ENABLED=true\n",
-                encoding="utf-8",
-            )
-            auth.refresh_auth_state() # simulate the flip to True
+        auth.set_initial_password("passwd6")
 
-            # 3. The attacker tries to re-enable auth without a password or valid cookie
-            response = asyncio.run(
-                auth_endpoint.auth_update_settings(
-                    self._build_request(cookies={WEB_COOKIE_NAME: "invalid"}),
-                    auth_endpoint.AuthSettingsRequest(authEnabled=True),
-                )
+        response = asyncio.run(
+            auth_endpoint.auth_update_settings(
+                self._build_request(cookies={WEB_COOKIE_NAME: "invalid"}),
+                auth_endpoint.AuthSettingsRequest(authEnabled=True),
             )
+        )
 
-        # 4. Must be rejected because they lack a valid session + NO current_password
+        # Must be rejected because they lack a valid session + NO current_password.
         self.assertEqual(response.status_code, 400)
         self.assertIn(b'"error":"current_required"', response.body)
 

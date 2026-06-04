@@ -1,15 +1,14 @@
 ﻿# -*- coding: utf-8 -*-
 """Web authentication module.
 
-Login is mandatory. The legacy ADMIN_AUTH_ENABLED setting is kept only so older
-.env files and settings payloads do not break while the runtime always requires
-password authentication.
+Login is mandatory. Runtime authentication cannot be disabled through
+environment configuration.
 """
 
 from __future__ import annotations
 
-import base64
 import json
+import base64
 import getpass
 import hashlib
 import hmac
@@ -20,8 +19,6 @@ import sys
 import time
 from pathlib import Path
 from typing import Optional, Tuple
-
-from dotenv import dotenv_values
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +37,7 @@ SESSION_MAX_AGE_HOURS_DEFAULT = 24
 MIN_PASSWORD_LEN = 6
 MIN_USERNAME_LEN = 3
 
-# Lazy-loaded state
-_auth_enabled: Optional[bool] = None
 _session_secret: Optional[bytes] = None
-_password_hash_salt: Optional[bytes] = None
-_password_hash_stored: Optional[bytes] = None
 _rate_limit: dict[str, Tuple[int, float]] = {}
 _rate_limit_lock = None
 
@@ -68,23 +61,6 @@ def _get_data_dir() -> Path:
     """Return DATA_DIR as parent of DATABASE_PATH."""
     db_path = os.getenv("DATABASE_PATH", "./data/stock_analysis.db")
     return Path(db_path).resolve().parent
-
-
-def _get_credential_path() -> Path:
-    """Path to stored password hash file."""
-    return _get_data_dir() / ".admin_password_hash"
-
-
-def _is_auth_enabled_from_env() -> bool:
-    """Read ADMIN_AUTH_ENABLED from .env file."""
-    _ensure_env_loaded()
-    env_file = os.getenv("ENV_FILE")
-    env_path = Path(env_file) if env_file else Path(__file__).resolve().parent.parent / ".env"
-    if not env_path.exists():
-        return False
-    values = dotenv_values(env_path)
-    val = (values.get("ADMIN_AUTH_ENABLED") or "").strip().lower()
-    return val in ("true", "1", "yes")
 
 
 def rotate_session_secret() -> bool:
@@ -143,24 +119,6 @@ def _load_session_secret() -> Optional[bytes]:
         return None
 
 
-def _parse_password_hash(value: str) -> Optional[Tuple[bytes, bytes]]:
-    """Parse salt_b64:hash_b64. Returns (salt, hash) or None."""
-    if not value or ":" not in value:
-        return None
-    parts = value.strip().split(":", 1)
-    if len(parts) != 2:
-        return None
-    try:
-        salt_b64, hash_b64 = parts[0].strip(), parts[1].strip()
-        salt = base64.standard_b64decode(salt_b64)
-        stored_hash = base64.standard_b64decode(hash_b64)
-        if salt and stored_hash:
-            return (salt, stored_hash)
-    except (ValueError, TypeError):
-        pass
-    return None
-
-
 def _verify_password_hash(submitted: str, salt: bytes, stored_hash: bytes) -> bool:
     """Verify submitted password against stored pbkdf2 hash."""
     computed = hashlib.pbkdf2_hmac(
@@ -171,64 +129,46 @@ def _verify_password_hash(submitted: str, salt: bytes, stored_hash: bytes) -> bo
     )
     return hmac.compare_digest(computed, stored_hash)
 
-
-def _load_credential_from_file() -> bool:
-    """Load credential from file into module globals. Returns True if loaded."""
-    global _password_hash_salt, _password_hash_stored
-
-    path = _get_credential_path()
-    if not path.exists():
-        _password_hash_salt = None
-        _password_hash_stored = None
-        return False
-
-    try:
-        raw = path.read_text().strip()
-        parsed = _parse_password_hash(raw)
-        if parsed is None:
-            logger.warning("Invalid .admin_password_hash format, ignoring")
-            return False
-        _password_hash_salt, _password_hash_stored = parsed
-        return True
-    except OSError as e:
-        logger.error("Failed to read credential file: %s", e)
-        return False
-
-
 def refresh_auth_state() -> None:
-    """Reload auth-related state from disk and env."""
-    global _auth_enabled, _session_secret
-    _auth_enabled = None
+    """Reload auth-related state from disk."""
+    global _session_secret
     _session_secret = None
-    _load_credential_from_file()
 
 
 def is_auth_enabled() -> bool:
-    """Return whether authentication is enabled.
-
-    Login is mandatory; ADMIN_AUTH_ENABLED is kept only as legacy env metadata.
-    """
-    global _auth_enabled
-    if _auth_enabled is not None:
-        return _auth_enabled
-    _auth_enabled = True
-    return _auth_enabled
+    """Return whether authentication is enabled."""
+    return True
 
 
 def has_stored_password() -> bool:
-    """Return whether a valid stored password hash exists on disk."""
-    return _load_credential_from_file()
+    """Return whether the database admin password has been initialized."""
+    try:
+        from src.storage import DatabaseManager
+
+        return DatabaseManager.get_instance().is_admin_password_initialized()
+    except Exception:
+        logger.warning("Failed to read admin password state from database", exc_info=True)
+        return False
 
 
 def verify_stored_password(password: str) -> bool:
-    """Verify password against stored credential even when auth is disabled."""
-    if not has_stored_password():
+    """Verify password against the initialized database admin credential."""
+    try:
+        from src.storage import DatabaseManager
+
+        db = DatabaseManager.get_instance()
+        row = db.get_admin_user_by_username("admin")
+    except Exception:
+        logger.warning("Failed to load admin credential from database", exc_info=True)
         return False
-    return _verify_password_hash(password, _password_hash_salt, _password_hash_stored)
+
+    if row is None or not row.is_active or not row.password_initialized:
+        return False
+    return _verify_password_hash(password, row.password_salt, row.password_hash)
 
 
 def is_password_set() -> bool:
-    """Return whether initial password has been set (credential file exists and valid)."""
+    """Return whether initial password has been set."""
     return has_stored_password()
 
 
@@ -339,7 +279,7 @@ def authenticate_admin_user(username: str, password: str) -> Optional[dict]:
     db = DatabaseManager.get_instance()
     db.ensure_default_admin_account()
     row = db.get_admin_user_by_username(username_norm)
-    if row is None or not row.is_active:
+    if row is None or not row.is_active or not row.password_initialized:
         return None
     if not _verify_password_hash(password, row.password_salt, row.password_hash):
         return None
@@ -350,7 +290,7 @@ def get_admin_user_by_id(admin_user_id: int) -> Optional[dict]:
     from src.storage import DatabaseManager
 
     row = DatabaseManager.get_instance().get_admin_user_by_id(int(admin_user_id))
-    if row is None or not row.is_active:
+    if row is None or not row.is_active or not row.password_initialized:
         return None
     return _admin_user_to_dict(row)
 
@@ -404,55 +344,27 @@ def _admin_user_to_dict(row) -> dict:
     }
 
 
-def _sync_admin_account_password() -> None:
-    if not _password_hash_salt or not _password_hash_stored:
-        return
+def _store_admin_password(password: str) -> Optional[str]:
     try:
         from src.storage import DatabaseManager
 
-        DatabaseManager.get_instance().sync_admin_account_password(
-            _password_hash_salt,
-            _password_hash_stored,
-        )
+        salt, stored = _hash_password(password)
+        DatabaseManager.get_instance().set_admin_account_password(salt, stored)
+        return None
     except Exception:
-        logger.warning("Failed to sync admin_users password", exc_info=True)
+        logger.error("Failed to write admin password to database", exc_info=True)
+        return "密码保存失败"
 
 
 def set_initial_password(password: str) -> Optional[str]:
     """
     Set initial password (first-time setup). Returns error message or None on success.
-    Atomic write with 0o600 permissions.
     """
     err = _validate_password(password)
     if err:
         return err
 
-    data_dir = _get_data_dir()
-    data_dir.mkdir(parents=True, exist_ok=True)
-    cred_path = _get_credential_path()
-
-    salt = secrets.token_bytes(32)
-    derived = hashlib.pbkdf2_hmac(
-        "sha256",
-        password.encode("utf-8"),
-        salt=salt,
-        iterations=PBKDF2_ITERATIONS,
-    )
-    salt_b64 = base64.standard_b64encode(salt).decode("ascii")
-    hash_b64 = base64.standard_b64encode(derived).decode("ascii")
-    content = f"{salt_b64}:{hash_b64}"
-
-    try:
-        tmp_path = cred_path.with_suffix(".tmp")
-        tmp_path.write_text(content)
-        tmp_path.chmod(0o600)
-        tmp_path.replace(cred_path)
-        _load_credential_from_file()
-        _sync_admin_account_password()
-        return None
-    except OSError as e:
-        logger.error("Failed to write credential file: %s", e)
-        return "密码保存失败"
+    return _store_admin_password(password)
 
 
 def verify_password(password: str) -> bool:
@@ -469,37 +381,14 @@ def change_password(current: str, new: str) -> Optional[str]:
 
     if not current or not current.strip():
         return "请输入当前密码"
-    if not _verify_password_hash(current, _password_hash_salt, _password_hash_stored):
+    if not verify_stored_password(current):
         return "当前密码错误"
 
     err = _validate_password(new)
     if err:
         return err
 
-    cred_path = _get_credential_path()
-    salt = secrets.token_bytes(32)
-    derived = hashlib.pbkdf2_hmac(
-        "sha256",
-        new.encode("utf-8"),
-        salt=salt,
-        iterations=PBKDF2_ITERATIONS,
-    )
-    salt_b64 = base64.standard_b64encode(salt).decode("ascii")
-    hash_b64 = base64.standard_b64encode(derived).decode("ascii")
-    content = f"{salt_b64}:{hash_b64}"
-
-    try:
-        tmp_path = cred_path.with_suffix(".tmp")
-        tmp_path.write_text(content)
-        tmp_path.chmod(0o600)
-        tmp_path.replace(cred_path)
-        # Reload into memory so subsequent verify_password uses new hash
-        _load_credential_from_file()
-        _sync_admin_account_password()
-        return None
-    except OSError as e:
-        logger.error("Failed to write credential file: %s", e)
-        return "密码保存失败"
+    return _store_admin_password(new)
 
 
 def create_session(user: Optional[dict] = None, subject_type: Optional[str] = None) -> str:
@@ -652,32 +541,7 @@ def overwrite_password(new_password: str) -> Optional[str]:
     if err:
         return err
 
-    data_dir = _get_data_dir()
-    data_dir.mkdir(parents=True, exist_ok=True)
-    cred_path = _get_credential_path()
-
-    salt = secrets.token_bytes(32)
-    derived = hashlib.pbkdf2_hmac(
-        "sha256",
-        new_password.encode("utf-8"),
-        salt=salt,
-        iterations=PBKDF2_ITERATIONS,
-    )
-    salt_b64 = base64.standard_b64encode(salt).decode("ascii")
-    hash_b64 = base64.standard_b64encode(derived).decode("ascii")
-    content = f"{salt_b64}:{hash_b64}"
-
-    try:
-        tmp_path = cred_path.with_suffix(".tmp")
-        tmp_path.write_text(content)
-        tmp_path.chmod(0o600)
-        tmp_path.replace(cred_path)
-        _load_credential_from_file()
-        _sync_admin_account_password()
-        return None
-    except OSError as e:
-        logger.error("Failed to write credential file: %s", e)
-        return "密码保存失败"
+    return _store_admin_password(new_password)
 
 
 def reset_password_cli() -> int:

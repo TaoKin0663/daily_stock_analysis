@@ -7,9 +7,9 @@ import { systemConfigApi } from '../api/systemConfig';
 import { agentApi, type AgentModelDeployment } from '../api/agent';
 import { ApiErrorAlert, Button, ConfirmDialog, EmptyState, InlineAlert } from '../components/common';
 import {
+  AgentSkillsEditor,
   AuthSettingsCard,
   ChangePasswordCard,
-  IntelligentImport,
   LLMChannelEditor,
   SettingsCategoryNav,
   SettingsAlert,
@@ -308,6 +308,7 @@ const SettingsPage: React.FC = () => {
   const agentArchValue =
     (itemsByCategory['agent'] || []).find((i) => i.key === 'AGENT_ARCH')?.value || 'single';
   const agentModelMapItem = (itemsByCategory['agent'] || []).find((i) => i.key === 'AGENT_MODEL_MAP');
+  const agentSkillsItem = (itemsByCategory['agent'] || []).find((i) => i.key === 'AGENT_SKILLS');
   const primaryModelValue = aiModelItemMap.get('LITELLM_MODEL') || '';
   const agentPrimaryModelValue = aiModelItemMap.get('AGENT_LITELLM_MODEL') || '';
   const hasConfiguredChannels = Boolean((rawActiveItemMap.get('LLM_CHANNELS') || '').trim());
@@ -344,11 +345,9 @@ const SettingsPage: React.FC = () => {
     'OPENAI_TEMPERATURE',
     'VISION_MODEL',
   ]);
-  const SYSTEM_HIDDEN_KEYS = new Set([
-    'ADMIN_AUTH_ENABLED',
-  ]);
   const AGENT_HIDDEN_KEYS = new Set<string>([
     'AGENT_MODEL_MAP',
+    'AGENT_SKILLS',
   ]);
   const activeItems =
     activeCategory === 'ai_model'
@@ -361,11 +360,9 @@ const SettingsPage: React.FC = () => {
         }
         return true;
       })
-      : activeCategory === 'system'
-        ? rawActiveItems.filter((item) => !SYSTEM_HIDDEN_KEYS.has(item.key))
-        : activeCategory === 'agent'
-          ? rawActiveItems.filter((item) => !AGENT_HIDDEN_KEYS.has(item.key))
-          : rawActiveItems;
+      : activeCategory === 'agent'
+        ? rawActiveItems.filter((item) => !AGENT_HIDDEN_KEYS.has(item.key))
+        : rawActiveItems;
   const desktopActionDisabled = isLoading || isSaving || isExportingEnv || isImportingEnv;
 
   const downloadDesktopEnv = async () => {
@@ -610,7 +607,7 @@ const SettingsPage: React.FC = () => {
                 </div>
               </SettingsSectionCard>
             ) : null}
-            {activeCategory === 'base' ? (
+            {/* {activeCategory === 'base' ? (
               <SettingsSectionCard
                 title="智能导入"
                 description="从图片、文件或剪贴板中提取股票代码，并合并到自选股列表。"
@@ -627,7 +624,7 @@ const SettingsPage: React.FC = () => {
                   disabled={isSaving || isLoading}
                 />
               </SettingsSectionCard>
-            ) : null}
+            ) : null} */}
             {activeCategory === 'ai_model' && isAdmin ? (
               <SettingsSectionCard
                 title="AI 模型接入"
@@ -647,6 +644,13 @@ const SettingsPage: React.FC = () => {
             ) : null}
             {activeCategory === 'system' && passwordChangeable && isAdmin ? (
               <ChangePasswordCard />
+            ) : null}
+            {activeCategory === 'agent' && agentSkillsItem ? (
+              <AgentSkillsEditor
+                item={agentSkillsItem}
+                disabled={isSaving || isLoading}
+                onChange={setDraftValue}
+              />
             ) : null}
             {activeCategory === 'agent' && agentArchValue === 'multi' && agentModelMapItem ? (
               <AgentModelAssignmentCard

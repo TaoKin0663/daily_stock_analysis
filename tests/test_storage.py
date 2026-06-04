@@ -120,7 +120,7 @@ class TestStorage(unittest.TestCase):
 
         DatabaseManager.reset_instance()
 
-    def test_default_user_role_backfills_new_default_setting_permissions(self):
+    def test_default_user_role_does_not_reseed_removed_setting_permissions(self):
         DatabaseManager.reset_instance()
         db = DatabaseManager(db_url="sqlite:///:memory:")
 
@@ -136,8 +136,26 @@ class TestStorage(unittest.TestCase):
         db.ensure_default_roles()
         role_payload = db.get_role_by_key("user")
 
-        self.assertIn("AGENT_ARCH", role_payload["settingKeys"])
+        self.assertNotIn("AGENT_ARCH", role_payload["settingKeys"])
         self.assertNotIn("AGENT_SKILL_DIR", role_payload["settingKeys"])
+
+        DatabaseManager.reset_instance()
+
+    def test_role_update_persists_removed_notification_setting_permission(self):
+        DatabaseManager.reset_instance()
+        db = DatabaseManager(db_url="sqlite:///:memory:")
+        role = db.get_role_by_key("user")
+        self.assertIsNotNone(role)
+        self.assertIn("EMAIL_SENDER", role["settingKeys"])
+
+        next_setting_keys = [key for key in role["settingKeys"] if key != "EMAIL_SENDER"]
+        updated = db.update_role_record(int(role["id"]), setting_keys=next_setting_keys)
+        self.assertIsNotNone(updated)
+        self.assertNotIn("EMAIL_SENDER", updated["settingKeys"])
+
+        db.ensure_default_roles()
+        reloaded = db.get_role_by_key("user")
+        self.assertNotIn("EMAIL_SENDER", reloaded["settingKeys"])
 
         DatabaseManager.reset_instance()
 

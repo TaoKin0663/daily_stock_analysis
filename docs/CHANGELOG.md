@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [修复] 修复 PostgreSQL 回测结果写入长 `operation_advice` 建议文本时因字段长度不足导致回测执行失败的问题。
+- [修复] 修复 PostgreSQL 回测结果写入 `insufficient_data` 状态时因 `eval_status` 字段长度不足导致回测执行失败的问题。
+- [修复] 修复多 Agent 模式未把基本面上下文传入报告生成链路导致首页 2.1/2.2 财报区块缺失的问题，并避免空财报数据生成全 N/A 提示。
+- [修复] 修复 C 端用户已获得配置权限但未填写企业微信 Webhook 时仍回退到平台 Webhook 的问题，授权字段现在以个人配置为空值为准，未授权字段才继承平台配置。
+- [修复] PostgreSQL 启动迁移在缺少 `backtest_evaluations` 表时跳过对应列类型调整，避免服务启动失败。
+- [修复] C 端登录页移除管理员初始化表单，管理员密码初始化仅保留在管理后台入口。
+- [修复] 管理后台管理员密码改为以数据库 `admin_users` 为准，支持 `ADMIN_INITIAL_PASSWORD` 首次启动种子，并避免角色设置权限在重启后被默认权限补回。
 - [修复] 修复 Agent 模式历史报告详情未能从顶层 `fundamental_context` 提取 2.1/2.2 财报数据的问题，并在任务完成后自动打开最新完成报告。
 - [修复] 修复首页与完整报告 2.2 盈利能力在 LLM 未返回 `profitability_analysis` 时整块不显示的问题，改为使用结构化毛利率/净利率/ROE 指标生成兜底摘要并保留毛利率图表。
 - [改进] 2.2 盈利能力区块改为 LLM 生成的动态文字分析并保留毛利率趋势图，不再展示固定表格。
@@ -456,7 +463,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🐛 **Bare `/api` SPA fallback** — unknown API paths now return JSON `404` consistently for both `/api/...` and the exact `/api` path
 - 🎮 **Discord channel env compatibility** — runtime now accepts legacy `DISCORD_CHANNEL_ID` as a fallback for `DISCORD_MAIN_CHANNEL_ID`, and the docs/examples now use the same variable name as the actual workflow/config implementation
 - 🐛 **Session secret rotation on Windows** — use atomic replace so auth toggles invalidate existing sessions even when `.session_secret` already exists
-- 🐛 **Auth toggle atomicity** — persist `ADMIN_AUTH_ENABLED` before rotating session secret; on rotation failure, roll back to the previous auth state
+- 🐛 **Auth setting atomicity** — persist auth settings before rotating session secret; on rotation failure, roll back to the previous auth state
 - 🔧 **LLM runtime selection guardrails** — YAML 模式下渠道编辑器不再覆盖 `LITELLM_MODEL` / fallback / Vision；系统配置校验补上全部渠道禁用后的运行时来源检查，并修复 `vertexai/...` 这类协议别名模型被重复加前缀的问题
 - 🐛 **Multi-stock `/ask` follow-up regressions** — portfolio overlay now shares the same timeout budget as the per-stock phase and is skipped on timeout instead of blocking the bot reply; `/history` now stores the readable per-stock summary instead of raw dashboard JSON; condensed multi-stock output now renders numeric `sniper_points` values
 - 🐛 **Decision dashboard enum compatibility** — multi-agent `DecisionAgent` now keeps `decision_type` within the legacy `buy|hold|sell` contract and normalizes stray `strong_*` outputs before risk override, pipeline conversion, and downstream统计/通知汇总
@@ -710,7 +717,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### 新增
 - 🔐 **Web 页面密码验证**（Issue #320, #349）
-  - 支持 `ADMIN_AUTH_ENABLED=true` 启用 Web 登录保护
+  - 支持 Web 登录保护
   - 首次访问在网页设置初始密码；支持「系统设置 > 修改密码」和 CLI `python -m src.auth reset_password` 重置
 
 ## [3.2.6] - 2026-02-20

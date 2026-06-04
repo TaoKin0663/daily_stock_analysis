@@ -28,10 +28,7 @@ from src.storage import DatabaseManager
 
 
 def _reset_auth_globals() -> None:
-    auth._auth_enabled = None
     auth._session_secret = None
-    auth._password_hash_salt = None
-    auth._password_hash_stored = None
     auth._rate_limit = {}
 
 
@@ -49,7 +46,6 @@ class PortfolioApiTestCase(unittest.TestCase):
                 [
                     "STOCK_LIST=600519",
                     "GEMINI_API_KEY=test",
-                    "ADMIN_AUTH_ENABLED=false",
                     f"DATABASE_PATH={self.db_path}",
                 ]
             )
@@ -64,6 +60,11 @@ class PortfolioApiTestCase(unittest.TestCase):
         app = create_app(static_dir=self.data_dir / "empty-static")
         self.client = TestClient(app)
         self.db = DatabaseManager.get_instance()
+        response = self.client.post(
+            "/api/v1/auth/register",
+            json={"username": "portfolio_user", "password": "password123", "passwordConfirm": "password123"},
+        )
+        self.assertEqual(response.status_code, 200)
 
     def tearDown(self) -> None:
         DatabaseManager.reset_instance()

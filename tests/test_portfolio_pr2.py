@@ -22,18 +22,17 @@ except ModuleNotFoundError:
 
 import src.auth as auth
 from api.app import create_app
+from src.auth import register_user
 from src.config import Config
 from src.services.portfolio_import_service import PortfolioImportService
 from src.services.portfolio_risk_service import PortfolioRiskService
 from src.services.portfolio_service import PortfolioBusyError, PortfolioService
 from src.storage import DatabaseManager
+from src.user_context import CurrentUser, use_current_user
 
 
 def _reset_auth_globals() -> None:
-    auth._auth_enabled = None
     auth._session_secret = None
-    auth._password_hash_salt = None
-    auth._password_hash_stored = None
     auth._rate_limit = {}
 
 
@@ -51,7 +50,6 @@ class PortfolioPr2TestCase(unittest.TestCase):
                 [
                     "STOCK_LIST=600519",
                     "GEMINI_API_KEY=test",
-                    "ADMIN_AUTH_ENABLED=false",
                     "PORTFOLIO_RISK_CONCENTRATION_ALERT_PCT=70.0",
                     "PORTFOLIO_RISK_DRAWDOWN_ALERT_PCT=10.0",
                     "PORTFOLIO_RISK_STOP_LOSS_ALERT_PCT=25.0",
@@ -76,8 +74,29 @@ class PortfolioPr2TestCase(unittest.TestCase):
         self._board_fetch_patcher = patch.object(PortfolioRiskService, "_fetch_belong_boards", return_value=[])
         self._board_fetch_patcher.start()
         self.client = TestClient(create_app(static_dir=data_dir / "empty-static"))
+        user, err = register_user("portfolio_user", "password123")
+        self.assertIsNone(err)
+        self._current_user_ctx = use_current_user(
+            CurrentUser(
+                id=int(user["id"]),
+                username=str(user["username"]),
+                is_admin=False,
+                account_type="web",
+                role_key=str(user.get("roleKey") or ""),
+                role_name=str(user.get("roleName") or ""),
+                menu_permissions=tuple(user.get("menuPermissions") or ()),
+                setting_permissions=tuple(user.get("settingPermissions") or ()),
+            )
+        )
+        self._current_user_ctx.__enter__()
+        login_response = self.client.post(
+            "/api/v1/auth/login",
+            json={"username": "portfolio_user", "password": "password123"},
+        )
+        self.assertEqual(login_response.status_code, 200)
 
     def tearDown(self) -> None:
+        self._current_user_ctx.__exit__(None, None, None)
         DatabaseManager.reset_instance()
         Config.reset_instance()
         os.environ.pop("ENV_FILE", None)

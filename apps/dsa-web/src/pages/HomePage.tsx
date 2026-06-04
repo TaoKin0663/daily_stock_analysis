@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Modal } from '@heroui/react';
 import { ApiErrorAlert, ConfirmDialog, Button, EmptyState, InlineAlert } from '../components/common';
 import { DashboardStateBlock } from '../components/dashboard';
 import { StockAutocomplete } from '../components/StockAutocomplete';
@@ -10,10 +11,14 @@ import { TaskPanel } from '../components/tasks';
 import { useDashboardLifecycle, useHomeDashboardState } from '../hooks';
 import { getReportText, normalizeReportLanguage } from '../utils/reportLanguage';
 
+/** 推送通知引导对话框是否已展示过的 localStorage 标记 */
+const NOTIFY_GUIDE_DISMISSED_KEY = 'dsa_notify_guide_dismissed';
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showNotifyGuide, setShowNotifyGuide] = useState(false);
 
   const {
     query,
@@ -106,6 +111,17 @@ const HomePage: React.FC = () => {
     setShowDeleteConfirm(false);
   }, [deleteSelectedHistory]);
 
+  const handleDismissNotifyGuide = useCallback(() => {
+    localStorage.setItem(NOTIFY_GUIDE_DISMISSED_KEY, '1');
+    setShowNotifyGuide(false);
+  }, []);
+
+  const handleGoToNotifySettings = useCallback(() => {
+    localStorage.setItem(NOTIFY_GUIDE_DISMISSED_KEY, '1');
+    setShowNotifyGuide(false);
+    navigate('/settings');
+  }, [navigate]);
+
   const sidebarContent = useMemo(
     () => (
       <div className="flex min-h-0 h-full flex-col gap-3 overflow-hidden">
@@ -176,7 +192,13 @@ const HomePage: React.FC = () => {
               <input
                 type="checkbox"
                 checked={notify}
-                onChange={(e) => setNotify(e.target.checked)}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setNotify(checked);
+                  if (checked && !localStorage.getItem(NOTIFY_GUIDE_DISMISSED_KEY)) {
+                    setShowNotifyGuide(true);
+                  }
+                }}
                 className="h-3.5 w-3.5 rounded border-border accent-primary"
               />
               推送通知
@@ -323,6 +345,47 @@ const HomePage: React.FC = () => {
         onConfirm={handleDeleteSelectedHistory}
         onCancel={() => setShowDeleteConfirm(false)}
       />
+
+      <Modal.Root isOpen={showNotifyGuide} onOpenChange={(open) => { if (!open) handleDismissNotifyGuide(); }}>
+        <Modal.Backdrop variant="blur">
+          <Modal.Container size="sm" placement="center">
+            <Modal.Dialog>
+              <Modal.Header>
+                <Modal.Heading>开启推送通知</Modal.Heading>
+                <Modal.CloseTrigger />
+              </Modal.Header>
+              <Modal.Body>
+                <div className="space-y-3 text-sm leading-6 text-secondary-text">
+                  <p>
+                    推送通知需要先在设置中配置通知渠道（企业微信、飞书、钉钉、PushPlus 等），否则无法发送推送。
+                  </p>
+                  <p>
+                    请前往{' '}
+                    <span className="font-semibold text-primary">设置 → 通知渠道</span>
+                    {' '}完成配置后再开启推送。
+                  </p>
+                </div>
+              </Modal.Body>
+              <Modal.Footer className="flex justify-end gap-2">
+                <Button
+                  variant="settings-secondary"
+                  size="sm"
+                  onClick={handleDismissNotifyGuide}
+                >
+                  知道了
+                </Button>
+                <Button
+                  variant="settings-primary"
+                  size="sm"
+                  onClick={handleGoToNotifySettings}
+                >
+                  去设置
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal.Root>
     </div>
   );
 };

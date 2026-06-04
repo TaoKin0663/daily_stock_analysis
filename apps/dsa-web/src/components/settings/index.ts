@@ -1,3 +1,4 @@
+export * from './AgentSkillsEditor';
 export * from './LLMChannelEditor';
 export * from './SettingsAlert';
 export * from './ChangePasswordCard';

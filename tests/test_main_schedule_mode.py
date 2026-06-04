@@ -275,7 +275,11 @@ class MainScheduleModeTestCase(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "boom"):
                 provider()
 
-    def test_schedule_time_provider_respects_process_env_precedence(self) -> None:
+    def test_schedule_time_provider_reads_db_first(self) -> None:
+        """Provider reads DB first (.env and env var are fallbacks)."""
+        mock_db = unittest.mock.MagicMock()
+        mock_db._initialized = True
+        mock_db.get_system_config_map.return_value = {"SCHEDULE_TIME": "16:50"}
         with patch.dict(
             os.environ,
             {"SCHEDULE_TIME": "18:00"},
@@ -286,11 +290,59 @@ class MainScheduleModeTestCase(unittest.TestCase):
             {"SCHEDULE_TIME": "18:00"},
         ), patch(
             "src.core.config_manager.ConfigManager.read_config_map",
-            side_effect=AssertionError("should not read .env when process env override exists"),
+            return_value={"SCHEDULE_TIME": "18:00"},
+        ), patch.object(
+            type(unittest.mock.sentinel),
+            "__eq__",
+            create=True,
+        ):
+            with patch("src.storage.DatabaseManager") as db_mgr_cls:
+                db_mgr_cls._instance = mock_db
+                db_mgr_cls.get_instance.return_value = mock_db
+                provider = main._build_schedule_time_provider("09:30")
+                self.assertEqual(provider(), "16:50")
+
+    def test_schedule_time_provider_falls_back_to_env_file_when_db_unavailable(self) -> None:
+        """When DB is not initialized, .env file value is used."""
+        with patch.dict(
+            os.environ,
+            {"SCHEDULE_TIME": "18:00"},
+            clear=False,
+        ), patch.object(
+            main,
+            "_INITIAL_PROCESS_ENV",
+            {"SCHEDULE_TIME": "18:00"},
+        ), patch(
+            "src.core.config_manager.ConfigManager.read_config_map",
+            return_value={"SCHEDULE_TIME": "16:50"},
+        ), patch(
+            "main.DatabaseManager",
+            create=True,
+            **{"_instance": None},
         ):
             provider = main._build_schedule_time_provider("09:30")
+            self.assertEqual(provider(), "16:50")
 
-            self.assertEqual(provider(), "18:00")
+    def test_schedule_time_provider_falls_back_to_env_var(self) -> None:
+        """When DB unavailable and .env has no SCHEDULE_TIME, process env var is used."""
+        with patch.dict(
+            os.environ,
+            {"SCHEDULE_TIME": "09:30"},
+            clear=False,
+        ), patch.object(
+            main,
+            "_INITIAL_PROCESS_ENV",
+            {"SCHEDULE_TIME": "09:30"},
+        ), patch(
+            "src.core.config_manager.ConfigManager.read_config_map",
+            return_value={"OTHER_KEY": "other_value"},
+        ), patch(
+            "main.DatabaseManager",
+            create=True,
+            **{"_instance": None},
+        ):
+            provider = main._build_schedule_time_provider("18:00")
+            self.assertEqual(provider(), "09:30")
 
     def test_schedule_time_provider_falls_back_to_system_default_on_clear(self) -> None:
         """When SCHEDULE_TIME is cleared/removed from config, provider returns '18:00'."""

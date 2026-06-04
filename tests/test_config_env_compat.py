@@ -5,13 +5,15 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from src.config import Config, setup_env
+from src.config import Config, clear_user_config_cache, get_config, setup_env
+from src.user_context import CurrentUser, use_current_user
 
 
 class ConfigEnvCompatibilityTestCase(unittest.TestCase):
     def tearDown(self):
+        clear_user_config_cache()
         Config.reset_instance()
 
     @patch("src.config.setup_env")
@@ -69,6 +71,62 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
             database_url,
             "postgresql+psycopg://dsa:dsa_password@localhost:5435/daily_stock_analysis",
         )
+
+    @patch("src.config.setup_env")
+    @patch.object(Config, "_parse_litellm_yaml", return_value=[])
+    def test_authorized_empty_user_webhook_does_not_fallback_to_platform(
+        self, _mock_parse_litellm_yaml, _mock_setup_env
+    ):
+        current_user = CurrentUser(
+            id=123,
+            username="alice",
+            account_type="web",
+            setting_permissions=("WECHAT_WEBHOOK_URL",),
+        )
+        db = MagicMock()
+        db.get_system_config_map.return_value = {
+            "STOCK_LIST": "600519",
+            "WECHAT_WEBHOOK_URL": "https://platform.example/webhook",
+        }
+        db.get_user_config_map.return_value = {"WECHAT_WEBHOOK_URL": ""}
+
+        with patch.dict(os.environ, {"STOCK_LIST": "600519"}, clear=True):
+            with patch("src.storage.DatabaseManager") as db_manager:
+                db_manager._instance = MagicMock(_initialized=True)
+                db_manager.get_instance.return_value = db
+                with use_current_user(current_user):
+                    clear_user_config_cache(123)
+                    config = get_config()
+
+        self.assertEqual(config.wechat_webhook_url, "")
+
+    @patch("src.config.setup_env")
+    @patch.object(Config, "_parse_litellm_yaml", return_value=[])
+    def test_unauthorized_user_webhook_uses_platform_fallback(
+        self, _mock_parse_litellm_yaml, _mock_setup_env
+    ):
+        current_user = CurrentUser(
+            id=123,
+            username="alice",
+            account_type="web",
+            setting_permissions=("STOCK_LIST",),
+        )
+        db = MagicMock()
+        db.get_system_config_map.return_value = {
+            "STOCK_LIST": "600519",
+            "WECHAT_WEBHOOK_URL": "https://platform.example/webhook",
+        }
+        db.get_user_config_map.return_value = {"WECHAT_WEBHOOK_URL": ""}
+
+        with patch.dict(os.environ, {"STOCK_LIST": "600519"}, clear=True):
+            with patch("src.storage.DatabaseManager") as db_manager:
+                db_manager._instance = MagicMock(_initialized=True)
+                db_manager.get_instance.return_value = db
+                with use_current_user(current_user):
+                    clear_user_config_cache(123)
+                    config = get_config()
+
+        self.assertEqual(config.wechat_webhook_url, "https://platform.example/webhook")
 
     def test_explicit_database_path_can_override_dotenv_database_url(self):
         with patch.dict(

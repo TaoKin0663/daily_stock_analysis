@@ -28,45 +28,56 @@ describe('LoginPage', () => {
     useSearchParamsMock.mockReturnValue([new URLSearchParams('redirect=%2Fsettings')]);
   });
 
-  it('blocks first-time setup when confirmation does not match', async () => {
+  it('logs admin initialization error without showing setup form', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const login = vi.fn();
     useAuthMock.mockReturnValue({
       login,
+      register: vi.fn(),
       passwordSet: false,
       setupState: 'no_password',
     });
 
     render(<LoginPage />);
 
-    fireEvent.change(screen.getByLabelText('管理员密码'), { target: { value: 'passwd6' } });
-    fireEvent.change(screen.getByLabelText('确认密码'), { target: { value: 'passwd7' } });
-    fireEvent.click(screen.getByRole('button', { name: '完成设置并登录' }));
-
-    expect(await screen.findByText('两次输入的密码不一致')).toBeInTheDocument();
+    expect(consoleError).toHaveBeenCalledWith(
+      'Admin password is not initialized. Please initialize it from dsa-admin.'
+    );
+    expect(screen.getByRole('heading', { name: '用户登录' })).toBeInTheDocument();
+    expect(screen.getByLabelText('用户名')).toBeInTheDocument();
+    expect(screen.getByLabelText('密码')).toBeInTheDocument();
+    expect(screen.queryByText('设置管理员密码')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('管理员密码')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('确认密码')).not.toBeInTheDocument();
     expect(login).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('管理员密码')).toHaveAttribute('data-appearance', 'login');
-    expect(screen.getByLabelText('确认密码')).toHaveAttribute('data-appearance', 'login');
+
+    consoleError.mockRestore();
   });
 
   it('navigates to redirect after a successful login', async () => {
+    const login = vi.fn().mockResolvedValue({ success: true });
     useAuthMock.mockReturnValue({
-      login: vi.fn().mockResolvedValue({ success: true }),
+      login,
+      register: vi.fn(),
       passwordSet: true,
       setupState: 'enabled',
     });
 
     render(<LoginPage />);
 
-    fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'passwd6' } });
-    fireEvent.click(screen.getByRole('button', { name: '授权进入工作台' }));
+    fireEvent.change(screen.getByLabelText('用户名'), { target: { value: 'alice' } });
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'passwd6' } });
+    fireEvent.click(screen.getByRole('button', { name: '登录' }));
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/settings', { replace: true }));
-    expect(screen.getByLabelText('登录密码')).toHaveAttribute('data-appearance', 'login');
+    expect(login).toHaveBeenCalledWith('passwd6', undefined, 'alice');
+    expect(screen.getByLabelText('密码')).toHaveAttribute('data-appearance', 'login');
   });
 
   it('does not override login theme tokens inline so light mode can take effect', () => {
     useAuthMock.mockReturnValue({
       login: vi.fn(),
+      register: vi.fn(),
       passwordSet: true,
       setupState: 'enabled',
     });

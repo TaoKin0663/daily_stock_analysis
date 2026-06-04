@@ -16,6 +16,7 @@ from contextlib import contextmanager
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 from datetime import datetime, date, timedelta
@@ -145,6 +146,7 @@ class AdminUser(Base):
     username = Column(String(64), nullable=False, unique=True, index=True)
     password_salt = Column(LargeBinary, nullable=False)
     password_hash = Column(LargeBinary, nullable=False)
+    password_initialized = Column(Boolean, nullable=False, default=False, index=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime, default=datetime.now, index=True)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
@@ -356,7 +358,7 @@ class AnalysisHistory(Base):
 
     # 核心结论
     sentiment_score = Column(Integer)
-    operation_advice = Column(String(20))
+    operation_advice = Column(Text)
     trend_prediction = Column(String(50))
     analysis_summary = Column(Text)
 
@@ -425,11 +427,11 @@ class BacktestResult(Base):
     engine_version = Column(String(16), nullable=False, default='v1')
 
     # 状态
-    eval_status = Column(String(16), nullable=False, default='pending')
+    eval_status = Column(String(32), nullable=False, default='pending')
     evaluated_at = Column(DateTime, default=datetime.now, index=True)
 
     # 建议快照（避免未来分析字段变化导致回测不可解释）
-    operation_advice = Column(String(20))
+    operation_advice = Column(Text)
     position_recommendation = Column(String(8))  # long/cash
 
     # 价格与收益
@@ -972,6 +974,9 @@ class DatabaseManager:
 
     def _run_lightweight_migrations(self) -> None:
         """Apply idempotent SQLite column additions for older local databases."""
+        if self._is_postgresql_engine:
+            self._run_postgresql_lightweight_migrations()
+            return
         if not self._is_sqlite_engine:
             return
         additions = {
@@ -982,6 +987,9 @@ class DatabaseManager:
                 ("is_active", "INTEGER"),
                 ("created_at", "DATETIME"),
                 ("updated_at", "DATETIME"),
+            ],
+            "admin_users": [
+                ("password_initialized", "INTEGER NOT NULL DEFAULT 1"),
             ],
             "news_intel": [("owner_user_id", "INTEGER")],
             "fundamental_snapshot": [("owner_user_id", "INTEGER")],
@@ -1028,24 +1036,11 @@ class DatabaseManager:
                 if existing_admin is not None and (
                     existing_admin[2] is None or existing_admin[3] is None
                 ):
-                    import base64
-                    import hashlib as _hashlib
                     import secrets
-                    from pathlib import Path
 
                     salt = secrets.token_bytes(32)
-                    stored = None
-                    try:
-                        cred_path = Path(get_config().database_path).resolve().parent / ".admin_password_hash"
-                        if cred_path.exists():
-                            raw = cred_path.read_text(encoding="utf-8").strip()
-                            salt_b64, hash_b64 = raw.split(":", 1)
-                            salt = base64.standard_b64decode(salt_b64)
-                            stored = base64.standard_b64decode(hash_b64)
-                    except Exception:
-                        stored = None
-                    if stored is None:
-                        stored = _hashlib.pbkdf2_hmac("sha256", b"admin123", salt=salt, iterations=100_000)
+                    seed_password = (os.getenv("ADMIN_INITIAL_PASSWORD") or secrets.token_urlsafe(32)).strip()
+                    stored = self._hash_admin_password(seed_password, salt=salt)[1]
                     conn.exec_driver_sql(
                         """
                         UPDATE users
@@ -1057,6 +1052,60 @@ class DatabaseManager:
 
             # migrate users table from old VARCHAR id to INTEGER id if needed
             self._migrate_users_table_to_integer_id(conn)
+
+    def _run_postgresql_lightweight_migrations(self) -> None:
+        """Apply idempotent PostgreSQL column additions used by current releases."""
+        with self._engine.begin() as conn:
+            conn.exec_driver_sql(
+                """
+                ALTER TABLE admin_users
+                ADD COLUMN IF NOT EXISTS password_initialized BOOLEAN NOT NULL DEFAULT TRUE
+                """
+            )
+            # 修正 operation_advice 列类型：从 VARCHAR(20) 扩展为 TEXT，避免 LLM 长输出截断
+            for table_name in ("analysis_history", "backtest_evaluations", "backtest_results"):
+                column_exists = conn.exec_driver_sql(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_schema = current_schema()
+                          AND table_name = %s
+                          AND column_name = 'operation_advice'
+                    )
+                    """,
+                    (table_name,),
+                ).scalar()
+                if not column_exists:
+                    logger.debug(
+                        "Skip PostgreSQL operation_advice migration for missing table/column %s",
+                        table_name,
+                    )
+                    continue
+                conn.exec_driver_sql(
+                    f"""
+                    ALTER TABLE {table_name}
+                    ALTER COLUMN operation_advice TYPE TEXT
+                    """
+                )
+
+            backtest_results_exists = conn.exec_driver_sql(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = current_schema()
+                      AND table_name = 'backtest_results'
+                )
+                """
+            ).scalar()
+            if backtest_results_exists:
+                conn.exec_driver_sql(
+                    """
+                    ALTER TABLE backtest_results
+                    ALTER COLUMN eval_status TYPE VARCHAR(32)
+                    """
+                )
 
     def _migrate_users_table_to_integer_id(self, conn) -> None:
         """Rebuild users table with INTEGER id if currently using VARCHAR id."""
@@ -1204,7 +1253,7 @@ class DatabaseManager:
                         select(RoleMenuPermission).where(RoleMenuPermission.role_id == role.id)
                     ).scalars().all()
                 }
-                should_seed_permissions = key == SUPER_ADMIN_ROLE_KEY or not current_keys
+                should_seed_permissions = not current_keys
                 if should_seed_permissions:
                     for menu_key in normalize_menu_keys(list(menu_keys)):
                         if menu_key not in current_keys:
@@ -1216,7 +1265,7 @@ class DatabaseManager:
                         select(RoleSettingPermission).where(RoleSettingPermission.role_id == role.id)
                     ).scalars().all()
                 }
-                should_seed_settings = key in {SUPER_ADMIN_ROLE_KEY, DEFAULT_USER_ROLE_KEY} or not current_setting_keys
+                should_seed_settings = not current_setting_keys
                 if should_seed_settings:
                     for setting_key in normalize_setting_keys(list(setting_keys)):
                         if setting_key not in current_setting_keys:
@@ -1230,10 +1279,7 @@ class DatabaseManager:
 
     def ensure_default_admin_user(self) -> int:
         """Ensure a migrated admin account exists and owns legacy rows."""
-        import base64
-        import hashlib as _hashlib
         import secrets
-        from pathlib import Path
 
         session = self._SessionLocal()
         try:
@@ -1245,18 +1291,8 @@ class DatabaseManager:
                 existing_admin.is_active = True
                 if existing_admin.password_salt is None or existing_admin.password_hash is None:
                     salt = secrets.token_bytes(32)
-                    stored = None
-                    try:
-                        cred_path = Path(get_config().database_path).resolve().parent / ".admin_password_hash"
-                        if cred_path.exists():
-                            raw = cred_path.read_text(encoding="utf-8").strip()
-                            salt_b64, hash_b64 = raw.split(":", 1)
-                            salt = base64.standard_b64decode(salt_b64)
-                            stored = base64.standard_b64decode(hash_b64)
-                    except Exception:
-                        stored = None
-                    if stored is None:
-                        stored = _hashlib.pbkdf2_hmac("sha256", b"admin123", salt=salt, iterations=100_000)
+                    seed_password = (os.getenv("ADMIN_INITIAL_PASSWORD") or secrets.token_urlsafe(32)).strip()
+                    stored = self._hash_admin_password(seed_password, salt=salt)[1]
                     existing_admin.password_salt = salt
                     existing_admin.password_hash = stored
                     session.add(existing_admin)
@@ -1264,18 +1300,8 @@ class DatabaseManager:
                 owner_id = int(existing_admin.id)
             else:
                 salt = secrets.token_bytes(32)
-                stored = None
-                try:
-                    cred_path = Path(get_config().database_path).resolve().parent / ".admin_password_hash"
-                    if cred_path.exists():
-                        raw = cred_path.read_text(encoding="utf-8").strip()
-                        salt_b64, hash_b64 = raw.split(":", 1)
-                        salt = base64.standard_b64decode(salt_b64)
-                        stored = base64.standard_b64decode(hash_b64)
-                except Exception:
-                    stored = None
-                if stored is None:
-                    stored = _hashlib.pbkdf2_hmac("sha256", b"admin123", salt=salt, iterations=100_000)
+                seed_password = (os.getenv("ADMIN_INITIAL_PASSWORD") or secrets.token_urlsafe(32)).strip()
+                stored = self._hash_admin_password(seed_password, salt=salt)[1]
                 user = User(
                     username="admin",
                     password_salt=salt,
@@ -1329,65 +1355,62 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def _load_admin_credential_seed(self) -> tuple[bytes, bytes]:
-        """Load admin credential seed from legacy file or users.admin, falling back to admin123."""
-        import base64
+    @staticmethod
+    def _hash_admin_password(password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
         import hashlib as _hashlib
         import secrets
-        from pathlib import Path
 
-        salt = secrets.token_bytes(32)
-        stored = None
-        try:
-            cred_path = Path(get_config().database_path).resolve().parent / ".admin_password_hash"
-            if cred_path.exists():
-                raw = cred_path.read_text(encoding="utf-8").strip()
-                salt_b64, hash_b64 = raw.split(":", 1)
-                salt = base64.standard_b64decode(salt_b64)
-                stored = base64.standard_b64decode(hash_b64)
-        except Exception:
-            stored = None
-
-        if stored is None:
-            try:
-                session = self._SessionLocal()
-                try:
-                    legacy_admin = session.execute(
-                        select(User).where(User.username == "admin").limit(1)
-                    ).scalar_one_or_none()
-                    if legacy_admin and legacy_admin.password_salt and legacy_admin.password_hash:
-                        salt = bytes(legacy_admin.password_salt)
-                        stored = bytes(legacy_admin.password_hash)
-                finally:
-                    session.close()
-            except Exception:
-                stored = None
-
-        if stored is None:
-            stored = _hashlib.pbkdf2_hmac("sha256", b"admin123", salt=salt, iterations=100_000)
+        salt = salt or secrets.token_bytes(32)
+        stored = _hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt=salt,
+            iterations=100_000,
+        )
         return salt, stored
 
+    def _admin_seed_credential(self) -> tuple[bytes, bytes, bool]:
+        """Return seed credential and whether it is a real initialized password."""
+        import secrets
+
+        initial_password = (os.getenv("ADMIN_INITIAL_PASSWORD") or "").strip()
+        if initial_password:
+            if len(initial_password) < 6:
+                logger.warning("ADMIN_INITIAL_PASSWORD is shorter than 6 characters; admin password not initialized")
+            else:
+                salt, stored = self._hash_admin_password(initial_password)
+                return salt, stored, True
+
+        salt = secrets.token_bytes(32)
+        # This placeholder is never accepted while password_initialized is false.
+        stored = self._hash_admin_password(secrets.token_urlsafe(32), salt=salt)[1]
+        return salt, stored, False
+
     def ensure_default_admin_account(self) -> int:
-        """Ensure the isolated admin_users.admin account exists."""
-        salt, stored = self._load_admin_credential_seed()
+        """Seed the isolated admin_users.admin account without overwriting real passwords."""
         session = self._SessionLocal()
         try:
             row = session.execute(
                 select(AdminUser).where(AdminUser.username == "admin").limit(1)
             ).scalar_one_or_none()
             if row is None:
+                salt, stored, initialized = self._admin_seed_credential()
                 row = AdminUser(
                     username="admin",
                     password_salt=salt,
                     password_hash=stored,
+                    password_initialized=initialized,
                     is_active=True,
                 )
                 session.add(row)
                 session.flush()
             else:
                 row.is_active = True
-                row.password_salt = salt
-                row.password_hash = stored
+                if not bool(getattr(row, "password_initialized", False)):
+                    initial_password = (os.getenv("ADMIN_INITIAL_PASSWORD") or "").strip()
+                    if initial_password and len(initial_password) >= 6:
+                        row.password_salt, row.password_hash = self._hash_admin_password(initial_password)
+                        row.password_initialized = True
                 row.updated_at = datetime.now()
                 session.add(row)
                 session.flush()
@@ -1400,8 +1423,8 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def sync_admin_account_password(self, password_salt: bytes, password_hash: bytes) -> None:
-        """Update the isolated admin account password from the canonical admin credential."""
+    def set_admin_account_password(self, password_salt: bytes, password_hash: bytes) -> None:
+        """Set the canonical admin account password in the database."""
         session = self._SessionLocal()
         try:
             row = session.execute(
@@ -1412,11 +1435,13 @@ class DatabaseManager:
                     username="admin",
                     password_salt=password_salt,
                     password_hash=password_hash,
+                    password_initialized=True,
                     is_active=True,
                 )
             else:
                 row.password_salt = password_salt
                 row.password_hash = password_hash
+                row.password_initialized = True
                 row.is_active = True
                 row.updated_at = datetime.now()
             session.add(row)
@@ -1426,6 +1451,14 @@ class DatabaseManager:
             raise
         finally:
             session.close()
+
+    def is_admin_password_initialized(self) -> bool:
+        self.ensure_default_admin_account()
+        with self.get_session() as session:
+            row = session.execute(
+                select(AdminUser).where(AdminUser.username == "admin").limit(1)
+            ).scalar_one_or_none()
+            return bool(row and row.is_active and row.password_initialized)
 
     def get_admin_user_by_username(self, username: str) -> Optional[AdminUser]:
         username_norm = (username or "").strip().lower()
@@ -1689,16 +1722,12 @@ class DatabaseManager:
             role.updated_at = datetime.now()
             session.add(role)
             if menu_keys is not None:
-                if role.key == SUPER_ADMIN_ROLE_KEY:
-                    menu_keys = ADMIN_MENU_KEYS
                 session.execute(
                     delete(RoleMenuPermission).where(RoleMenuPermission.role_id == int(role.id))
                 )
                 for menu_key in normalize_menu_keys(menu_keys):
                     session.add(RoleMenuPermission(role_id=int(role.id), menu_key=menu_key))
             if setting_keys is not None:
-                if role.key == SUPER_ADMIN_ROLE_KEY:
-                    setting_keys = ADMIN_SETTING_KEYS
                 session.execute(
                     delete(RoleSettingPermission).where(RoleSettingPermission.role_id == int(role.id))
                 )

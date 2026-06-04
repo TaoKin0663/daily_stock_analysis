@@ -2504,6 +2504,89 @@ class DataFetcherManager:
         else:
             institution_payload = dict(institution_payload)
 
+        supplemental_errors: List[str] = []
+
+        def _financial_report_payload() -> Dict[str, Any]:
+            payload = earnings_payload.get("financial_report") if isinstance(earnings_payload, dict) else None
+            if not isinstance(payload, dict):
+                payload = {}
+            return payload
+
+        def _attach_revenue_growth_payload(revenue_growth_payload: Dict[str, Any]) -> None:
+            if not revenue_growth_payload:
+                return
+            financial_report_payload = _financial_report_payload()
+            financial_report_payload["revenue_growth"] = revenue_growth_payload
+            latest_row = revenue_growth_payload.get("rows", [{}])[0]
+            if financial_report_payload.get("report_date") is None:
+                financial_report_payload["report_date"] = latest_row.get("report_date")
+            if financial_report_payload.get("revenue") is None:
+                financial_report_payload["revenue"] = latest_row.get("revenue")
+            earnings_payload["financial_report"] = financial_report_payload
+
+        def _attach_profitability_payload(profitability_payload: Dict[str, Any]) -> None:
+            if not profitability_payload:
+                return
+            financial_report_payload = _financial_report_payload()
+            financial_report_payload["profitability"] = profitability_payload
+            latest_row = profitability_payload.get("rows", [{}])[0]
+            if financial_report_payload.get("report_date") is None:
+                financial_report_payload["report_date"] = latest_row.get("report_date")
+            if financial_report_payload.get("roe") is None:
+                financial_report_payload["roe"] = latest_row.get("roe")
+            earnings_payload["financial_report"] = financial_report_payload
+
+        if market == "cn" and not is_etf:
+            financial_report_payload = _financial_report_payload()
+            if not financial_report_payload.get("revenue_growth") and remaining_seconds > 0:
+                supplemental_timeout = min(fetch_timeout, remaining_seconds)
+                revenue_growth_result, revenue_growth_err, revenue_growth_ms = self._run_with_retry(
+                    lambda: self._fundamental_adapter._fetch_annual_revenue_growth_direct(stock_code, max_rows=5),
+                    supplemental_timeout,
+                    "fundamental_revenue_growth",
+                )
+                _consume_budget(revenue_growth_ms)
+                revenue_growth_payload: Dict[str, Any] = {}
+                revenue_growth_errors: List[str] = []
+                if isinstance(revenue_growth_result, tuple):
+                    revenue_growth_payload = revenue_growth_result[0] if isinstance(revenue_growth_result[0], dict) else {}
+                    revenue_growth_errors = revenue_growth_result[1] if isinstance(revenue_growth_result[1], list) else []
+                if revenue_growth_payload:
+                    _attach_revenue_growth_payload(revenue_growth_payload)
+                    bundle_chain.append({
+                        "provider": "revenue_growth:stock_lrb_em",
+                        "result": "ok",
+                        "duration_ms": revenue_growth_ms,
+                    })
+                elif revenue_growth_err:
+                    supplemental_errors.append(revenue_growth_err)
+                supplemental_errors.extend(revenue_growth_errors)
+
+            financial_report_payload = _financial_report_payload()
+            if not financial_report_payload.get("profitability") and remaining_seconds > 0:
+                supplemental_timeout = min(fetch_timeout, remaining_seconds)
+                profitability_result, profitability_err, profitability_ms = self._run_with_retry(
+                    lambda: self._fundamental_adapter._fetch_profitability_indicators(stock_code, max_rows=5),
+                    supplemental_timeout,
+                    "fundamental_profitability",
+                )
+                _consume_budget(profitability_ms)
+                profitability_payload: Dict[str, Any] = {}
+                profitability_errors: List[str] = []
+                if isinstance(profitability_result, tuple):
+                    profitability_payload = profitability_result[0] if isinstance(profitability_result[0], dict) else {}
+                    profitability_errors = profitability_result[1] if isinstance(profitability_result[1], list) else []
+                if profitability_payload:
+                    _attach_profitability_payload(profitability_payload)
+                    bundle_chain.append({
+                        "provider": "profitability:stock_financial_analysis_indicator_em",
+                        "result": "ok",
+                        "duration_ms": profitability_ms,
+                    })
+                elif profitability_err:
+                    supplemental_errors.append(profitability_err)
+                supplemental_errors.extend(profitability_errors)
+
         # Derive TTM dividend yield from already-fetched quote price; avoid extra quote calls.
         earnings_extra_errors: List[str] = []
         dividend_payload = earnings_payload.get("dividend")
@@ -2540,6 +2623,7 @@ class DataFetcherManager:
 
         adapter_errors = list(bundle_payload.get("errors", [])) if isinstance(bundle_payload, dict) else []
         adapter_errors.extend(bundle_errors)
+        adapter_errors.extend(supplemental_errors)
         growth_errors = list(adapter_errors)
         earnings_errors = list(adapter_errors)
         earnings_errors.extend(earnings_extra_errors)
